@@ -1,0 +1,39 @@
+{
+  "name": "blynt",
+  "version": "0.1.0",
+  "description": "Generate a REST API project from a JSON schema.",
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "blynt": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "api",
+    "rest",
+    "crud",
+    "cli",
+    "schema",
+    "scaffold",
+    "codegen"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "citty": "^0.2.1",
+    "handlebars": "^4.7.8",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

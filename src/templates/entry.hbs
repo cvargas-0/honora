@@ -1,0 +1,10 @@
+import { serve } from "@hono/node-server";
+{{#if (eq lang "js")}}
+import app from "./routes/index.js";
+{{else}}
+import app from "./routes/index";
+{{/if}}
+
+const port = parseInt(process.env.PORT || "3000", 10);
+console.log(`Server running on http://localhost:${port}`);
+serve({ fetch: app.fetch, port });

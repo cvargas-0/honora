@@ -1,0 +1,35 @@
+{
+  "database": {
+    "driver": "sqlite",
+    "url": "./data.db"
+  },
+  "collections": [
+    {
+      "name": "users",
+      "id": { "type": "uuid" },
+      "fields": {
+        "name": { "type": "text", "required": true },
+        "email": { "type": "text", "required": true, "unique": true },
+        "age": { "type": "integer", "min": 0, "max": 150 },
+        "is_active": { "type": "boolean", "default": true },
+        "profile": { "type": "json" }
+      }
+    },
+    {
+      "name": "posts",
+      "id": { "type": "uuid" },
+      "fields": {
+        "user_id": {
+          "type": "relation",
+          "collection": "users",
+          "required": true,
+          "onDelete": "cascade"
+        },
+        "title": { "type": "text", "required": true },
+        "body": { "type": "text", "required": true },
+        "published_at": { "type": "date" },
+        "views": { "type": "integer", "default": 0 }
+      }
+    }
+  ]
+}

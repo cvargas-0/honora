@@ -1,0 +1,13 @@
+import { {{{imports}}} } from "drizzle-orm/sqlite-core";
+
+{{#each collections}}
+export const {{name}} = sqliteTable("{{name}}", {
+  id: {{{idExpression}}},
+  created_at: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updated_at: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+{{#each columns}}
+  {{name}}: {{{expression}}},
+{{/each}}
+});
+
+{{/each}}

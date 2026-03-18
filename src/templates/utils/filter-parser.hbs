@@ -1,0 +1,130 @@
+import { eq, ne, gt, gte, lt, lte, like, and, or } from "drizzle-orm";
+{{#if (eq lang "ts")}}
+import type { Column, SQL } from "drizzle-orm";
+
+export interface ParsedCondition {
+  field: string;
+  op: string;
+  value: unknown;
+}
+
+export interface ParsedFilter {
+  type: "and" | "or";
+  conditions: ParsedCondition[];
+}
+{{/if}}
+
+const OPERATORS = ["!=", ">=", "<=", ">", "<", "~", "="];
+
+{{#if (eq lang "ts")}}
+function parseValue(raw: string): unknown {
+{{else}}
+function parseValue(raw) {
+{{/if}}
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    return raw.slice(1, -1);
+  }
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  if (raw === "null") return null;
+  const num = Number(raw);
+  if (!isNaN(num) && raw !== "") return num;
+  return raw;
+}
+
+{{#if (eq lang "ts")}}
+function parseCondition(expr: string, validFields: Set<string>): ParsedCondition {
+{{else}}
+function parseCondition(expr, validFields) {
+{{/if}}
+  for (const op of OPERATORS) {
+    const idx = expr.indexOf(op);
+    if (idx > 0) {
+      const field = expr.slice(0, idx).trim();
+      if (!validFields.has(field)) {
+        throw new Error(`Unknown field in filter: ${field}`);
+      }
+      return {
+        field,
+        op,
+        value: parseValue(expr.slice(idx + op.length).trim()),
+      };
+    }
+  }
+  throw new Error(`Invalid filter condition: ${expr}`);
+}
+
+{{#if (eq lang "ts")}}
+export function parseFilter(filter: string, validFields: Set<string>): ParsedFilter[] {
+{{else}}
+export function parseFilter(filter, validFields) {
+{{/if}}
+  if (!filter || filter.trim() === "") return [];
+
+  const orGroups = filter.split("||");
+  if (orGroups.length === 1) {
+    const andParts = orGroups[0].split("&&");
+    return [{ type: "and", conditions: andParts.map((p) => parseCondition(p.trim(), validFields)) }];
+  }
+
+  return orGroups.map((group) => {
+    const andParts = group.split("&&");
+    return { type: "and", conditions: andParts.map((p) => parseCondition(p.trim(), validFields)) };
+  });
+}
+
+{{#if (eq lang "ts")}}
+function buildCondition(columns: Record<string, Column>, field: string, op: string, value: unknown): SQL | undefined {
+  const col = columns[field];
+{{else}}
+function buildCondition(columns, field, op, value) {
+  const col = columns[field];
+{{/if}}
+  if (!col) return undefined;
+{{#if (eq lang "ts")}}
+  switch (op) {
+    case "=": return eq(col, value as any);
+    case "!=": return ne(col, value as any);
+    case ">": return gt(col, value as any);
+    case ">=": return gte(col, value as any);
+    case "<": return lt(col, value as any);
+    case "<=": return lte(col, value as any);
+    case "~": return like(col, `%${value}%` as any);
+    default: return undefined;
+  }
+{{else}}
+  switch (op) {
+    case "=": return eq(col, value);
+    case "!=": return ne(col, value);
+    case ">": return gt(col, value);
+    case ">=": return gte(col, value);
+    case "<": return lt(col, value);
+    case "<=": return lte(col, value);
+    case "~": return like(col, `%${value}%`);
+    default: return undefined;
+  }
+{{/if}}
+}
+
+{{#if (eq lang "ts")}}
+export function buildWhere(columns: Record<string, Column>, validFields: Set<string>, filter: string | undefined): SQL | undefined {
+{{else}}
+export function buildWhere(columns, validFields, filter) {
+{{/if}}
+  if (!filter) return undefined;
+  const groups = parseFilter(filter, validFields);
+  if (groups.length === 0) return undefined;
+
+  const orConditions = groups.map((group) => {
+    const andConditions = group.conditions
+      .map((c) => buildCondition(columns, c.field, c.op, c.value))
+{{#if (eq lang "ts")}}
+      .filter((c): c is SQL => c !== undefined);
+{{else}}
+      .filter(Boolean);
+{{/if}}
+    return andConditions.length === 1 ? andConditions[0]! : and(...andConditions)!;
+  });
+
+  return orConditions.length === 1 ? orConditions[0] : or(...orConditions);
+}

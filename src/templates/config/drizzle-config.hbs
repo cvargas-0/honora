@@ -1,0 +1,14 @@
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+{{#if (eq lang "ts")}}
+  schema: "./src/db/schema.ts",
+{{else}}
+  schema: "./src/db/schema.js",
+{{/if}}
+  out: "./drizzle",
+  dialect: "sqlite",
+  dbCredentials: {
+    url: {{{json dbUrl}}},
+  },
+});

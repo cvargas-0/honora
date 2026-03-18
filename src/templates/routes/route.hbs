@@ -1,0 +1,256 @@
+import { Hono } from "hono";
+import { z } from "zod";
+{{#if (eq lang "js")}}
+import { db } from "../db/client.js";
+import { {{collectionName}}{{#each relationImports}}, {{name}}{{/each}} } from "../db/schema.js";
+import { eq, sql, asc, desc, getTableColumns } from "drizzle-orm";
+import { buildWhere } from "../utils/filter-parser.js";
+{{else}}
+import { db } from "../db/client";
+import { {{collectionName}}{{#each relationImports}}, {{name}}{{/each}} } from "../db/schema";
+import { eq, sql, asc, desc, getTableColumns } from "drizzle-orm";
+import { buildWhere } from "../utils/filter-parser";
+{{/if}}
+
+const createSchema = z.object({
+{{#each createFields}}
+{{#if required}}
+  {{name}}: {{{zodExpr}}},
+{{else if hasDefault}}
+  {{name}}: {{{zodExpr}}}.optional().default({{{defaultValue}}}),
+{{else}}
+  {{name}}: {{{zodExpr}}}.optional(),
+{{/if}}
+{{/each}}
+}).strict();
+
+const updateSchema = z.object({
+{{#each updateFields}}
+  {{name}}: {{{zodExpr}}}.optional(),
+{{/each}}
+}).strict();
+
+const validFields = new Set({{{validFieldsJson}}});
+const columns = getTableColumns({{collectionName}});
+
+export default new Hono()
+  // GET / — list with pagination, sort, filter
+  .get("/", (c) => {
+    try {
+      const page = parseInt(c.req.query("page") || "1", 10);
+      const perPage = Math.min(parseInt(c.req.query("perPage") || "20", 10), 100);
+      const offset = (page - 1) * perPage;
+      const sort = c.req.query("sort");
+      const filter = c.req.query("filter");
+
+      const where = buildWhere(columns, validFields, filter);
+
+{{#if (eq lang "ts")}}
+      const [{ count: totalItems }] = db
+        .select({ count: sql<number>`count(*)` })
+        .from({{collectionName}})
+        .where(where)
+        .all();
+{{else}}
+      const [{ count: totalItems }] = db
+        .select({ count: sql`count(*)` })
+        .from({{collectionName}})
+        .where(where)
+        .all();
+{{/if}}
+
+      let orderBy = desc(columns.created_at);
+      if (sort) {
+        const isDesc = sort.startsWith("-");
+        const field = isDesc ? sort.slice(1) : sort;
+{{#if (eq lang "ts")}}
+        const col = columns[field as keyof typeof columns];
+{{else}}
+        const col = columns[field];
+{{/if}}
+        if (col) orderBy = isDesc ? desc(col) : asc(col);
+      }
+
+      const items = db
+        .select()
+        .from({{collectionName}})
+        .where(where)
+        .orderBy(orderBy)
+        .limit(perPage)
+        .offset(offset)
+        .all();
+
+      return c.json({
+        page,
+        perPage,
+        totalPages: Math.ceil(totalItems / perPage) || 1,
+        totalItems,
+        items,
+      });
+{{#if (eq lang "ts")}}
+    } catch (err: any) {
+{{else}}
+    } catch (err) {
+{{/if}}
+      return c.json({ error: { code: 400, message: err.message } }, 400);
+    }
+  })
+
+  // GET /:id
+  .get("/:id", (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.param("id");
+{{/if}}
+    const row = db.select().from({{collectionName}}).where(eq({{collectionName}}.id, id)).get();
+    if (!row) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+    return c.json(row);
+  })
+
+  // POST /
+  .post("/", async (c) => {
+{{#if (eq lang "ts")}}
+    let body: unknown;
+{{else}}
+    let body;
+{{/if}}
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: { code: 400, message: "Invalid JSON body" } }, 400);
+    }
+
+    const result = createSchema.safeParse(body);
+    if (!result.success) {
+{{#if (eq lang "ts")}}
+      const details = result.error.issues.map((i: any) => ({ field: i.path.join("."), message: i.message }));
+{{else}}
+      const details = result.error.issues.map((i) => ({ field: i.path.join("."), message: i.message }));
+{{/if}}
+      return c.json({ error: { code: 400, message: "Validation failed", details } }, 400);
+    }
+
+{{#if (eq lang "ts")}}
+    const data = result.data as Record<string, unknown>;
+{{else}}
+    const data = result.data;
+{{/if}}
+
+{{#each relations}}
+    if (data["{{fieldName}}"]) {
+      const ref = db.select({ id: {{targetCollection}}.id }).from({{targetCollection}}).where(eq({{targetCollection}}.id, data["{{fieldName}}"] as string)).get();
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    try {
+{{#if (eq lang "ts")}}
+      const inserted = db.insert({{collectionName}}).values(data as any).returning().get();
+{{else}}
+      const inserted = db.insert({{collectionName}}).values(data).returning().get();
+{{/if}}
+      return c.json(inserted, 201);
+{{#if (eq lang "ts")}}
+    } catch (err: any) {
+{{else}}
+    } catch (err) {
+{{/if}}
+      if (err.message?.includes("UNIQUE constraint")) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+
+  // PATCH /:id
+  .patch("/:id", async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.param("id");
+{{/if}}
+
+{{#if (eq lang "ts")}}
+    let body: unknown;
+{{else}}
+    let body;
+{{/if}}
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: { code: 400, message: "Invalid JSON body" } }, 400);
+    }
+
+    const result = updateSchema.safeParse(body);
+    if (!result.success) {
+{{#if (eq lang "ts")}}
+      const details = result.error.issues.map((i: any) => ({ field: i.path.join("."), message: i.message }));
+{{else}}
+      const details = result.error.issues.map((i) => ({ field: i.path.join("."), message: i.message }));
+{{/if}}
+      return c.json({ error: { code: 400, message: "Validation failed", details } }, 400);
+    }
+
+{{#if (eq lang "ts")}}
+    const data = result.data as Record<string, unknown>;
+{{else}}
+    const data = result.data;
+{{/if}}
+
+{{#each relations}}
+    if (data["{{fieldName}}"] !== undefined) {
+      const ref = db.select({ id: {{targetCollection}}.id }).from({{targetCollection}}).where(eq({{targetCollection}}.id, data["{{fieldName}}"] as string)).get();
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    const existing = db.select({ id: {{collectionName}}.id }).from({{collectionName}}).where(eq({{collectionName}}.id, id)).get();
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      const updated = db.update({{collectionName}})
+{{#if (eq lang "ts")}}
+        .set({ ...data, updated_at: new Date().toISOString() } as any)
+{{else}}
+        .set({ ...data, updated_at: new Date().toISOString() })
+{{/if}}
+        .where(eq({{collectionName}}.id, id))
+        .returning()
+        .get();
+      return c.json(updated);
+{{#if (eq lang "ts")}}
+    } catch (err: any) {
+{{else}}
+    } catch (err) {
+{{/if}}
+      if (err.message?.includes("UNIQUE constraint")) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+
+  // DELETE /:id
+  .delete("/:id", (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.param("id");
+{{/if}}
+    const existing = db.select({ id: {{collectionName}}.id }).from({{collectionName}}).where(eq({{collectionName}}.id, id)).get();
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      db.delete({{collectionName}}).where(eq({{collectionName}}.id, id)).run();
+      return c.body(null, 204);
+{{#if (eq lang "ts")}}
+    } catch (err: any) {
+{{else}}
+    } catch (err) {
+{{/if}}
+      if (err.message?.includes("FOREIGN KEY constraint failed")) {
+        return c.json({ error: { code: 409, message: "Cannot delete: record is referenced by other records" } }, 409);
+      }
+      throw err;
+    }
+  });
