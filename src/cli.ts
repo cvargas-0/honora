@@ -1,98 +1,127 @@
-import { defineCommand, runMain } from "citty";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import * as p from "@clack/prompts";
 import { loadSchema } from "./core/schema-parser.js";
 import { generateProject } from "./generators/project.js";
 
-const init = defineCommand({
-  meta: {
-    name: "init",
-    description: "Generate a REST API project from a schema.json file",
-  },
-  args: {
-    "schema-path": {
-      type: "string",
-      description: "Path to schema file",
-      default: "./schema.json",
-    },
-    output: {
-      type: "string",
-      description: "Output directory",
-      default: "./output",
-    },
-    lang: {
-      type: "string",
-      description: "Output language: ts or js",
-      default: "ts",
-    },
-    force: {
-      type: "boolean",
-      description: "Overwrite existing output directory",
-      default: false,
-    },
-  },
-  run({ args }) {
-    const schemaPath = resolve(args["schema-path"]);
-    const outputDir = resolve(args.output);
-    const lang = args.lang as "ts" | "js";
+async function main() {
+  p.intro("blynt v0.1.0");
 
-    if (lang !== "ts" && lang !== "js") {
-      console.error(`Invalid language: "${lang}". Use "ts" or "js".`);
+  const args = process.argv.slice(2);
+  const flagIndex = (name: string) => {
+    const i = args.indexOf(`--${name}`);
+    return i !== -1 && args[i + 1] ? args[i + 1] : undefined;
+  };
+  const hasFlag = (name: string) => args.includes(`--${name}`);
+
+  const isNonInteractive = hasFlag("yes") || !process.stdin.isTTY;
+
+  let schemaPath = flagIndex("schema") ?? flagIndex("schema-path");
+  let outputDir = flagIndex("output");
+  let lang = flagIndex("lang") as "ts" | "js" | undefined;
+  let force = hasFlag("force");
+
+  if (isNonInteractive) {
+    schemaPath ??= "./schema.json";
+    outputDir ??= "./output";
+    lang ??= "ts";
+  } else {
+    const options = await p.group(
+      {
+        schemaPath: () =>
+          p.text({
+            message: "Path to schema file",
+            initialValue: schemaPath ?? "./schema.json",
+            validate: (val) => {
+              if (!val) return "Schema path is required";
+              if (!existsSync(resolve(val))) return `File not found: ${val}`;
+            },
+          }),
+        outputDir: () =>
+          p.text({
+            message: "Output directory",
+            initialValue: outputDir ?? "./output",
+            validate: (val) => {
+              if (!val) return "Output directory is required";
+            },
+          }),
+        lang: () =>
+          p.select({
+            message: "Language",
+            initialValue: lang ?? "ts",
+            options: [
+              { value: "ts", label: "TypeScript" },
+              { value: "js", label: "JavaScript" },
+            ],
+          }),
+      },
+      {
+        onCancel: () => {
+          p.cancel("Cancelled.");
+          process.exit(0);
+        },
+      },
+    );
+
+    schemaPath = options.schemaPath;
+    outputDir = options.outputDir;
+    lang = options.lang as "ts" | "js";
+  }
+
+  const absSchemaPath = resolve(schemaPath);
+  const absOutputDir = resolve(outputDir);
+
+  if (!existsSync(absSchemaPath)) {
+    p.cancel(`Schema file not found: ${absSchemaPath}`);
+    process.exit(1);
+  }
+
+  if (existsSync(absOutputDir) && !force) {
+    if (isNonInteractive) {
+      p.cancel(`Output directory already exists: ${absOutputDir}. Use --force to overwrite.`);
       process.exit(1);
     }
-
-    console.log("blynt v0.1.0\n");
-
-    if (!existsSync(schemaPath)) {
-      console.error(`Schema file not found: ${schemaPath}`);
-      process.exit(1);
+    const overwrite = await p.confirm({
+      message: `Output directory already exists. Overwrite?`,
+      initialValue: false,
+    });
+    if (p.isCancel(overwrite) || !overwrite) {
+      p.cancel("Cancelled.");
+      process.exit(0);
     }
+  }
 
-    if (existsSync(outputDir) && !args.force) {
-      console.error(`Output directory already exists: ${outputDir}`);
-      console.error('Use --force to overwrite.');
-      process.exit(1);
-    }
+  let schema;
+  try {
+    schema = loadSchema(absSchemaPath);
+  } catch (err: any) {
+    p.cancel(`Failed to load schema: ${err.message}`);
+    process.exit(1);
+  }
 
-    let schema;
-    try {
-      schema = loadSchema(schemaPath);
-    } catch (err: any) {
-      console.error(`Failed to load schema: ${err.message}`);
-      process.exit(1);
-    }
+  p.log.info(`Schema loaded: ${schema.collections.length} collection(s)`);
+  for (const col of schema.collections) {
+    p.log.step(`  ${col.name} (${Object.keys(col.fields).length} fields)`);
+  }
 
-    console.log(`Schema loaded: ${schema.collections.length} collection(s)`);
-    for (const col of schema.collections) {
-      console.log(`  - ${col.name} (${Object.keys(col.fields).length} fields)`);
-    }
-    console.log(`\nLanguage: ${lang.toUpperCase()}\n`);
+  const s = p.spinner();
+  s.start("Generating project...");
 
-    const files = generateProject(schema, outputDir, schemaPath, lang);
+  const files = generateProject(schema, absOutputDir, absSchemaPath, lang);
 
-    console.log(`Project generated at ${outputDir}/`);
-    console.log(`${files.length} files created:\n`);
-    for (const file of files) {
-      console.log(`  ${file}`);
-    }
+  s.stop(`Project generated — ${files.length} files created`);
 
-    console.log("\nNext steps:");
-    console.log(`  cd ${args.output}`);
-    console.log("  npm install");
-    console.log("  npm run dev");
-    console.log("");
-  },
+  p.note(files.map((f) => `  ${f}`).join("\n"), absOutputDir);
+
+  p.log.info("Next steps:");
+  p.log.step(`  cd ${outputDir}`);
+  p.log.step("  npm install");
+  p.log.step("  npm run dev");
+
+  p.outro("Done!");
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
-
-const main = defineCommand({
-  meta: {
-    name: "blynt",
-    version: "0.1.0",
-    description: "Generate a REST API project from a JSON schema.",
-  },
-  subCommands: {
-    init,
-  },
-});
-
-runMain(main);
