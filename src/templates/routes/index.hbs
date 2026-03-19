@@ -1,22 +1,8 @@
 import { Hono } from "hono";
 {{#each collections}}
-{{#if (eq ../lang "js")}}
-import {{name}} from "./{{name}}.js";
-{{else}}
-import {{name}} from "./{{name}}";
-{{/if}}
+import {{name}} from "./{{name}}{{#if (eq ../lang "js")}}.js{{/if}}";
 {{/each}}
 
-const app = new Hono();
-
-{{#each collections}}
-app.route("/api/{{name}}", {{name}});
-{{/each}}
-
-app.get("/api/_health", (c) => c.json({ status: "ok" }));
-
-const schemaConfig = {{{schemaJson}}};
-
-app.get("/api/_schema", (c) => c.json(schemaConfig));
+const app = new Hono().get("/api/_health", (c) => c.json({ status: "ok" }))
 
 export default app;

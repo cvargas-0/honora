@@ -1,10 +1,6 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-{{#if (eq lang "js")}}
-import * as schema from "./schema.js";
-{{else}}
-import * as schema from "./schema";
-{{/if}}
+import * as schema from "./schema{{#if (eq lang "js")}}.js{{/if}}";
 
 const sqlite = new Database(process.env.DATABASE_URL || {{{json dbUrl}}});
 sqlite.pragma("journal_mode = WAL");

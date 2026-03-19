@@ -16,11 +16,7 @@ export interface ParsedFilter {
 
 const OPERATORS = ["!=", ">=", "<=", ">", "<", "~", "="];
 
-{{#if (eq lang "ts")}}
-function parseValue(raw: string): unknown {
-{{else}}
-function parseValue(raw) {
-{{/if}}
+function parseValue(raw{{#if (eq lang "ts")}}: string{{/if}}){{#if (eq lang "ts")}}: unknown{{/if}} {
   if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
     return raw.slice(1, -1);
   }
@@ -32,11 +28,7 @@ function parseValue(raw) {
   return raw;
 }
 
-{{#if (eq lang "ts")}}
-function parseCondition(expr: string, validFields: Set<string>): ParsedCondition {
-{{else}}
-function parseCondition(expr, validFields) {
-{{/if}}
+function parseCondition(expr{{#if (eq lang "ts")}}: string{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}){{#if (eq lang "ts")}}: ParsedCondition{{/if}} {
   for (const op of OPERATORS) {
     const idx = expr.indexOf(op);
     if (idx > 0) {
@@ -54,11 +46,7 @@ function parseCondition(expr, validFields) {
   throw new Error(`Invalid filter condition: ${expr}`);
 }
 
-{{#if (eq lang "ts")}}
-export function parseFilter(filter: string, validFields: Set<string>): ParsedFilter[] {
-{{else}}
-export function parseFilter(filter, validFields) {
-{{/if}}
+export function parseFilter(filter{{#if (eq lang "ts")}}: string{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}){{#if (eq lang "ts")}}: ParsedFilter[]{{/if}} {
   if (!filter || filter.trim() === "") return [];
 
   const orGroups = filter.split("||");
@@ -73,44 +61,22 @@ export function parseFilter(filter, validFields) {
   });
 }
 
-{{#if (eq lang "ts")}}
-function buildCondition(columns: Record<string, Column>, field: string, op: string, value: unknown): SQL | undefined {
+function buildCondition(columns{{#if (eq lang "ts")}}: Record<string, Column>{{/if}}, field{{#if (eq lang "ts")}}: string{{/if}}, op{{#if (eq lang "ts")}}: string{{/if}}, value{{#if (eq lang "ts")}}: unknown{{/if}}){{#if (eq lang "ts")}}: SQL | undefined{{/if}} {
   const col = columns[field];
-{{else}}
-function buildCondition(columns, field, op, value) {
-  const col = columns[field];
-{{/if}}
   if (!col) return undefined;
-{{#if (eq lang "ts")}}
   switch (op) {
-    case "=": return eq(col, value as any);
-    case "!=": return ne(col, value as any);
-    case ">": return gt(col, value as any);
-    case ">=": return gte(col, value as any);
-    case "<": return lt(col, value as any);
-    case "<=": return lte(col, value as any);
-    case "~": return like(col, `%${value}%` as any);
+    case "=": return eq(col, value{{#if (eq lang "ts")}} as any{{/if}});
+    case "!=": return ne(col, value{{#if (eq lang "ts")}} as any{{/if}});
+    case ">": return gt(col, value{{#if (eq lang "ts")}} as any{{/if}});
+    case ">=": return gte(col, value{{#if (eq lang "ts")}} as any{{/if}});
+    case "<": return lt(col, value{{#if (eq lang "ts")}} as any{{/if}});
+    case "<=": return lte(col, value{{#if (eq lang "ts")}} as any{{/if}});
+    case "~": return like(col, `%${value}%`{{#if (eq lang "ts")}} as any{{/if}});
     default: return undefined;
   }
-{{else}}
-  switch (op) {
-    case "=": return eq(col, value);
-    case "!=": return ne(col, value);
-    case ">": return gt(col, value);
-    case ">=": return gte(col, value);
-    case "<": return lt(col, value);
-    case "<=": return lte(col, value);
-    case "~": return like(col, `%${value}%`);
-    default: return undefined;
-  }
-{{/if}}
 }
 
-{{#if (eq lang "ts")}}
-export function buildWhere(columns: Record<string, Column>, validFields: Set<string>, filter: string | undefined): SQL | undefined {
-{{else}}
-export function buildWhere(columns, validFields, filter) {
-{{/if}}
+export function buildWhere(columns{{#if (eq lang "ts")}}: Record<string, Column>{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}, filter{{#if (eq lang "ts")}}: string | undefined{{/if}}){{#if (eq lang "ts")}}: SQL | undefined{{/if}} {
   if (!filter) return undefined;
   const groups = parseFilter(filter, validFields);
   if (groups.length === 0) return undefined;
@@ -118,11 +84,7 @@ export function buildWhere(columns, validFields, filter) {
   const orConditions = groups.map((group) => {
     const andConditions = group.conditions
       .map((c) => buildCondition(columns, c.field, c.op, c.value))
-{{#if (eq lang "ts")}}
-      .filter((c): c is SQL => c !== undefined);
-{{else}}
-      .filter(Boolean);
-{{/if}}
+      .filter({{#if (eq lang "ts")}}(c): c is SQL => c !== undefined{{else}}Boolean{{/if}});
     return andConditions.length === 1 ? andConditions[0]! : and(...andConditions)!;
   });
 
