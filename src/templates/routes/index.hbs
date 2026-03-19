@@ -3,6 +3,9 @@ import { Hono } from "hono";
 import {{name}} from "./{{name}}{{#if (eq ../lang "js")}}.js{{/if}}";
 {{/each}}
 
-const app = new Hono().get("/api/_health", (c) => c.json({ status: "ok" }))
+export default new Hono()
+    .get("/api/_health", (c) => c.json({ status: "ok" }))
+{{#each collections}}
+    .route("/{{name}}", {{name}})
+{{/each}}
 
-export default app;
