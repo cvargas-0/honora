@@ -2,6 +2,7 @@
   "name": "honora",
   "version": "0.1.0",
   "description": "Generate a REST API project from a JSON schema.",
+  "license": "MIT",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
@@ -24,8 +25,10 @@
     "scaffold",
     "codegen"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": {
+    "name": "Camilo Vargas",
+    "url": "https://cvargas.dev"
+  },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "handlebars": "^4.7.8",
