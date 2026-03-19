@@ -5,7 +5,7 @@ import { loadSchema } from "./core/schema-parser.js";
 import { generateProject } from "./generators/project.js";
 
 async function main() {
-  p.intro("blynt v0.1.0");
+  p.intro("honora v0.1.0");
 
   const args = process.argv.slice(2);
   const flagValue = (name: string) => {
@@ -14,7 +14,7 @@ async function main() {
   };
   const hasFlag = (name: string) => args.includes(`--${name}`);
 
-  // Positional: blynt my-api  or  blynt .
+  // Positional: honora my-api  or  honora .
   const positional = args.find((a: string) => !a.startsWith("--"));
 
   const isNonInteractive = hasFlag("yes") || !process.stdin.isTTY;
@@ -26,7 +26,7 @@ async function main() {
 
   if (isNonInteractive) {
     if (!projectName) {
-      p.cancel("Project name is required. Usage: blynt <name> or blynt .");
+      p.cancel("Project name is required. Usage: honora <name> or honora .");
       process.exit(1);
     }
     schemaPath ??= "./schema.json";

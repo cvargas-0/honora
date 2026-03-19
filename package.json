@@ -1,11 +1,11 @@
 {
-  "name": "blynt",
+  "name": "honora",
   "version": "0.1.0",
   "description": "Generate a REST API project from a JSON schema.",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
-    "blynt": "dist/cli.js"
+    "honora": "dist/cli.js"
   },
   "files": [
     "dist"
