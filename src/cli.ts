@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import * as p from "@clack/prompts";
 import { loadSchema } from "./core/schema-parser.js";
 import { generateProject } from "./generators/project.js";
@@ -8,26 +8,41 @@ async function main() {
   p.intro("blynt v0.1.0");
 
   const args = process.argv.slice(2);
-  const flagIndex = (name: string) => {
+  const flagValue = (name: string) => {
     const i = args.indexOf(`--${name}`);
     return i !== -1 && args[i + 1] ? args[i + 1] : undefined;
   };
   const hasFlag = (name: string) => args.includes(`--${name}`);
 
+  // Positional: blynt my-api  or  blynt .
+  const positional = args.find((a: string) => !a.startsWith("--"));
+
   const isNonInteractive = hasFlag("yes") || !process.stdin.isTTY;
 
-  let schemaPath = flagIndex("schema") ?? flagIndex("schema-path");
-  let outputDir = flagIndex("output");
-  let lang = flagIndex("lang") as "ts" | "js" | undefined;
+  let projectName = positional ?? flagValue("name");
+  let schemaPath = flagValue("schema");
+  let lang = flagValue("lang") as "ts" | "js" | undefined;
   let force = hasFlag("force");
 
   if (isNonInteractive) {
+    if (!projectName) {
+      p.cancel("Project name is required. Usage: blynt <name> or blynt .");
+      process.exit(1);
+    }
     schemaPath ??= "./schema.json";
-    outputDir ??= "./output";
     lang ??= "ts";
   } else {
     const options = await p.group(
       {
+        projectName: () =>
+          p.text({
+            message: "Project name",
+            initialValue: projectName,
+            placeholder: "my-api",
+            validate: (val) => {
+              if (!val || val.trim() === "") return "Project name is required";
+            },
+          }),
         schemaPath: () =>
           p.text({
             message: "Path to schema file",
@@ -35,14 +50,6 @@ async function main() {
             validate: (val) => {
               if (!val) return "Schema path is required";
               if (!existsSync(resolve(val))) return `File not found: ${val}`;
-            },
-          }),
-        outputDir: () =>
-          p.text({
-            message: "Output directory",
-            initialValue: outputDir ?? "./output",
-            validate: (val) => {
-              if (!val) return "Output directory is required";
             },
           }),
         lang: () =>
@@ -63,26 +70,31 @@ async function main() {
       },
     );
 
+    projectName = options.projectName;
     schemaPath = options.schemaPath;
-    outputDir = options.outputDir;
     lang = options.lang as "ts" | "js";
   }
 
+  const isCwd = projectName === ".";
+  const outputDir = isCwd ? process.cwd() : resolve(projectName);
+  const displayName = isCwd ? basename(process.cwd()) : projectName;
+
   const absSchemaPath = resolve(schemaPath);
-  const absOutputDir = resolve(outputDir);
 
   if (!existsSync(absSchemaPath)) {
     p.cancel(`Schema file not found: ${absSchemaPath}`);
     process.exit(1);
   }
 
-  if (existsSync(absOutputDir) && !force) {
+  if (!isCwd && existsSync(outputDir) && !force) {
     if (isNonInteractive) {
-      p.cancel(`Output directory already exists: ${absOutputDir}. Use --force to overwrite.`);
+      p.cancel(
+        `Directory "${projectName}" already exists. Use --force to overwrite.`,
+      );
       process.exit(1);
     }
     const overwrite = await p.confirm({
-      message: `Output directory already exists. Overwrite?`,
+      message: `Directory "${projectName}" already exists. Overwrite?`,
       initialValue: false,
     });
     if (p.isCancel(overwrite) || !overwrite) {
@@ -91,15 +103,18 @@ async function main() {
     }
   }
 
-  let schema;
-  try {
-    schema = loadSchema(absSchemaPath);
-  } catch (err: any) {
-    p.cancel(`Failed to load schema: ${err.message}`);
-    process.exit(1);
-  }
+  const schema = (() => {
+    try {
+      return loadSchema(absSchemaPath);
+    } catch (err: any) {
+      p.cancel(`Failed to load schema: ${err.message}`);
+      return process.exit(1) as never;
+    }
+  })();
 
-  p.log.info(`Schema loaded: ${schema.collections.length} collection(s)`);
+  p.log.info(
+    `Creating ${displayName} — ${schema.collections.length} collection(s)`,
+  );
   for (const col of schema.collections) {
     p.log.step(`  ${col.name} (${Object.keys(col.fields).length} fields)`);
   }
@@ -107,16 +122,22 @@ async function main() {
   const s = p.spinner();
   s.start("Generating project...");
 
-  const files = generateProject(schema, absOutputDir, absSchemaPath, lang);
+  const files = generateProject(schema, outputDir, absSchemaPath, lang);
 
-  s.stop(`Project generated — ${files.length} files created`);
+  s.stop(`${files.length} files created`);
 
-  p.note(files.map((f) => `  ${f}`).join("\n"), absOutputDir);
+  p.note(files.map((f) => `  ${f}`).join("\n"), outputDir);
 
-  p.log.info("Next steps:");
-  p.log.step(`  cd ${outputDir}`);
-  p.log.step("  npm install");
-  p.log.step("  npm run dev");
+  if (isCwd) {
+    p.log.info("Next steps:");
+    p.log.step("  npm install");
+    p.log.step("  npm run dev");
+  } else {
+    p.log.info("Next steps:");
+    p.log.step(`  cd ${projectName}`);
+    p.log.step("  npm install");
+    p.log.step("  npm run dev");
+  }
 
   p.outro("Done!");
 }
