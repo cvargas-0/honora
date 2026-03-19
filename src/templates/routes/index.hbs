@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 {{#each collections}}
-import {{name}} from "./{{name}}{{#if (eq ../lang "js")}}.js{{/if}}";
+import {{name}} from "./{{name}}{{ext ../lang}}";
 {{/each}}
 
 export default new Hono()
-    .get("/api/_health", (c) => c.json({ status: "ok" }))
+    .basePath("/api")
+    .get("/_health", (c) => c.json({ status: "ok" }))
 {{#each collections}}
     .route("/{{name}}", {{name}})
 {{/each}}

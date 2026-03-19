@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import app from "./routes/index{{#if (eq lang "js")}}.js{{/if}}";
+import app from "./routes/index{{ext lang}}";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 console.log(`Server running on http://localhost:${port}`);

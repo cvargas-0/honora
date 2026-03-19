@@ -4,15 +4,52 @@ import * as p from "@clack/prompts";
 import { loadSchema } from "./core/schema-parser.js";
 import { generateProject } from "./generators/project.js";
 
-async function main() {
-  p.intro("honora v0.1.0");
+const VERSION = "0.1.0";
 
+const HELP = `
+honora v${VERSION}
+
+Usage: honora <name> [options]
+
+Arguments:
+  <name>              Project name or "." for current directory
+
+Options:
+  --schema <path>     Path to schema file (default: ./schema.json)
+  --lang <ts|js>      Output language (default: ts)
+  --force             Overwrite existing directory
+  --yes               Skip prompts, use defaults
+  --help              Show this help message
+  --version           Show version number
+`.trim();
+
+const VALID_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+
+function validateProjectName(name: string | undefined): string | undefined {
+  if (!name || name.trim() === "") return "Project name is required";
+  if (name === ".") return undefined;
+  if (!VALID_NAME.test(name)) return "Invalid project name (use lowercase, hyphens, no spaces)";
+}
+
+async function main() {
   const args = process.argv.slice(2);
   const flagValue = (name: string) => {
     const i = args.indexOf(`--${name}`);
     return i !== -1 && args[i + 1] ? args[i + 1] : undefined;
   };
   const hasFlag = (name: string) => args.includes(`--${name}`);
+
+  if (hasFlag("help") || hasFlag("h")) {
+    console.log(HELP);
+    process.exit(0);
+  }
+
+  if (hasFlag("version") || hasFlag("v")) {
+    console.log(VERSION);
+    process.exit(0);
+  }
+
+  p.intro(`honora v${VERSION}`);
 
   // Positional: honora my-api  or  honora .
   const positional = args.find((a: string) => !a.startsWith("--"));
@@ -22,11 +59,16 @@ async function main() {
   let projectName = positional ?? flagValue("name");
   let schemaPath = flagValue("schema");
   let lang = flagValue("lang") as "ts" | "js" | undefined;
-  let force = hasFlag("force");
+  const force = hasFlag("force");
 
   if (isNonInteractive) {
     if (!projectName) {
       p.cancel("Project name is required. Usage: honora <name> or honora .");
+      process.exit(1);
+    }
+    const nameErr = validateProjectName(projectName);
+    if (nameErr) {
+      p.cancel(nameErr);
       process.exit(1);
     }
     schemaPath ??= "./schema.json";
@@ -39,9 +81,7 @@ async function main() {
             message: "Project name",
             initialValue: projectName,
             placeholder: "my-api",
-            validate: (val) => {
-              if (!val || val.trim() === "") return "Project name is required";
-            },
+            validate: validateProjectName,
           }),
         schemaPath: () =>
           p.text({
@@ -106,8 +146,9 @@ async function main() {
   const schema = (() => {
     try {
       return loadSchema(absSchemaPath);
-    } catch (err: any) {
-      p.cancel(`Failed to load schema: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      p.cancel(`Failed to load schema: ${msg}`);
       return process.exit(1) as never;
     }
   })();

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { db } from "../db/client{{#if (eq lang "js")}}.js{{/if}}";
-import { {{collectionName}}{{#each relationImports}}, {{name}}{{/each}} } from "../db/schema{{#if (eq lang "js")}}.js{{/if}}";
+import { db } from "../db/client{{ext lang}}";
+import { {{collectionName}}{{#each relationImports}}, {{name}}{{/each}} } from "../db/schema{{ext lang}}";
 import { eq, sql, asc, desc, getTableColumns } from "drizzle-orm";
-import { buildWhere } from "../utils/filter-parser{{#if (eq lang "js")}}.js{{/if}}";
+import { buildWhere } from "../utils/filter-parser{{ext lang}}";
 
 const createSchema = z.object({
 {{#each createFields}}
@@ -15,13 +15,9 @@ const createSchema = z.object({
   {{name}}: {{{zodExpr}}}.optional(),
 {{/if}}
 {{/each}}
-}).strict();
+});
 
-const updateSchema = z.object({
-{{#each updateFields}}
-  {{name}}: {{{zodExpr}}}.optional(),
-{{/each}}
-}).strict();
+const updateSchema = createSchema.partial();
 
 const validFields = new Set({{{validFieldsJson}}});
 const columns = getTableColumns({{collectionName}});
@@ -30,8 +26,8 @@ export default new Hono()
   // GET / — list with pagination, sort, filter
   .get("/", (c) => {
     try {
-      const page = parseInt(c.req.query("page") || "1", 10);
-      const perPage = Math.min(parseInt(c.req.query("perPage") || "20", 10), 100);
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10) || 1);
+      const perPage = Math.max(1, Math.min(parseInt(c.req.query("perPage") || "20", 10) || 20, 100));
       const offset = (page - 1) * perPage;
       const sort = c.req.query("sort");
       const filter = c.req.query("filter");
@@ -65,7 +61,7 @@ export default new Hono()
       return c.json({
         page,
         perPage,
-        totalPages: Math.ceil(totalItems / perPage) || 1,
+        totalPages: Math.max(1, Math.ceil(totalItems / perPage)),
         totalItems,
         items,
       });
@@ -90,7 +86,9 @@ export default new Hono()
   // POST /
   .post("/", async (c) => {
     let body{{#if (eq lang "ts")}}: unknown{{/if}};
-    try { body = await c.req.json(); } catch {
+    try { 
+      body = await c.req.json(); 
+    } catch {
       return c.json({ error: { code: 400, message: "Invalid JSON body" } }, 400);
     }
 
@@ -130,7 +128,9 @@ export default new Hono()
 {{/if}}
 
     let body{{#if (eq lang "ts")}}: unknown{{/if}};
-    try { body = await c.req.json(); } catch {
+    try { 
+      body = await c.req.json(); 
+    } catch {
       return c.json({ error: { code: 400, message: "Invalid JSON body" } }, 400);
     }
 
