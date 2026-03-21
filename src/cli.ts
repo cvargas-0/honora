@@ -19,6 +19,7 @@ Options:
   --schema <path>     Path to schema file (default: ./schema.json)
   --lang <ts|js>      Output language (default: ts)
   --driver <driver>   Database driver: sqlite, postgres, mysql
+  --orm <orm>         ORM: drizzle, prisma
   --middleware <list>  Comma-separated: cors,logger
   --validation <mode> Validation mode: manual, hono-zod
   --openapi           Enable OpenAPI docs with Scalar
@@ -31,6 +32,7 @@ Options:
 const VALID_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
 type Driver = "sqlite" | "postgres" | "mysql";
+type Orm = "drizzle" | "prisma";
 type Validation = "manual" | "hono-zod";
 const VALID_MIDDLEWARE = ["cors", "logger"] as const;
 
@@ -128,12 +130,13 @@ async function main() {
     }
   })();
 
-  const { config: schema, explicitKeys } = loaded;
+  const { config: schema, explicitKeys, explicitDbKeys } = loaded;
 
   // --- Step 3: Prompt only for what's missing from schema ---
 
   // Parse CLI flags for overrides
   const driverFlag = flagValue("driver") as Driver | undefined;
+  const ormFlag = flagValue("orm") as Orm | undefined;
   const middlewareFlag = flagValue("middleware");
   const middlewareParsed: string[] | undefined = middlewareFlag
     ?.split(",")
@@ -146,6 +149,7 @@ async function main() {
 
   // CLI flags override schema values immediately
   if (driverFlag) schema.database.driver = driverFlag;
+  if (ormFlag) schema.database.orm = ormFlag;
   if (middlewareFlag !== undefined)
     schema.middleware = (middlewareParsed ?? []) as ("cors" | "logger")[];
   if (validationFlag) schema.validation = validationFlag;
@@ -179,6 +183,20 @@ async function main() {
       });
       if (p.isCancel(driverResult)) cancelled();
       schema.database.driver = driverResult;
+    }
+
+    // orm: only prompt if not in schema AND not provided via flag
+    if (!explicitDbKeys.has("orm") && !ormFlag) {
+      const ormResult = await p.select({
+        message: "ORM",
+        initialValue: "drizzle" as const,
+        options: [
+          { value: "drizzle" as const, label: "Drizzle ORM" },
+          { value: "prisma" as const, label: "Prisma" },
+        ],
+      });
+      if (p.isCancel(ormResult)) cancelled();
+      schema.database.orm = ormResult;
     }
 
     // middleware: only prompt if not in schema AND not provided via flag
@@ -246,7 +264,7 @@ async function main() {
   // --- Step 5: Generate project ---
 
   p.log.info(
-    `Creating ${displayName} — ${schema.collections.length} collection(s) [${schema.database.driver}]`,
+    `Creating ${displayName} — ${schema.collections.length} collection(s) [${schema.database.driver} + ${schema.database.orm}]`,
   );
   for (const col of schema.collections) {
     p.log.step(`  ${col.name} (${Object.keys(col.fields).length} fields)`);

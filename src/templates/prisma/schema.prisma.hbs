@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+{{#if (eq driver "postgres")}}
+  provider = "postgresql"
+{{else if (eq driver "mysql")}}
+  provider = "mysql"
+{{else}}
+  provider = "sqlite"
+{{/if}}
+  url      = env("DATABASE_URL")
+}
+
+{{#each collections}}
+model {{modelName}} {
+{{#if (eq idType "uuid")}}
+  id         String   @id @default(uuid())
+{{else if (eq idType "autoincrement")}}
+  id         Int      @id @default(autoincrement())
+{{else if (eq idType "integer")}}
+  id         Int      @id
+{{else}}
+  id         String   @id
+{{/if}}
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+{{#each columns}}
+  {{name}} {{{prismaType}}}
+{{/each}}
+
+{{#if relations}}
+{{#each relations}}
+  {{relName}} {{targetModel}} @relation(fields: [{{fieldName}}], references: [id]{{#if (neq onDelete "restrict")}}, onDelete: {{onDeletePrisma}}{{/if}})
+{{/each}}
+{{/if}}
+
+  @@map("{{tableName}}")
+}
+
+{{/each}}

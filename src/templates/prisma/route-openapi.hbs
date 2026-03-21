@@ -1,0 +1,244 @@
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { prisma } from "../db/client{{ext lang}}";
+import { buildWhere } from "../utils/filter-parser{{ext lang}}";
+
+const createSchema = z.object({
+{{#each createFields}}
+{{#if required}}
+  {{name}}: {{{zodExpr}}},
+{{else if hasDefault}}
+  {{name}}: {{{zodExpr}}}.optional().default({{{defaultValue}}}),
+{{else}}
+  {{name}}: {{{zodExpr}}}.optional(),
+{{/if}}
+{{/each}}
+});
+
+const updateSchema = createSchema.partial();
+
+const validFields = new Set({{{validFieldsJson}}});
+
+const itemSchema = z.object({
+  id: {{#if idIsInteger}}z.number(){{else}}z.string(){{/if}},
+{{#each createFields}}
+{{#unless (eq name "id")}}
+  {{name}}: {{{zodExpr}}}.nullable().optional(),
+{{/unless}}
+{{/each}}
+  created_at: z.string(),
+  updated_at: z.string(),
+}).openapi("{{capitalName}}");
+
+const errorSchema = z.object({
+  error: z.object({
+    code: z.number(),
+    message: z.string(),
+    details: z.array(z.object({ field: z.string(), message: z.string() })).optional(),
+  }),
+}).openapi("Error");
+
+const listRoute = createRoute({
+  method: "get",
+  path: "/",
+  tags: ["{{capitalName}}"],
+  summary: "List {{collectionName}}",
+  request: {
+    query: z.object({
+      page: z.string().optional().openapi({ example: "1" }),
+      perPage: z.string().optional().openapi({ example: "20" }),
+      sort: z.string().optional().openapi({ example: "-created_at" }),
+      filter: z.string().optional().openapi({ example: 'name="John"' }),
+    }),
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: z.object({ page: z.number(), perPage: z.number(), totalPages: z.number(), totalItems: z.number(), items: z.array(itemSchema) }) } },
+      description: "Paginated list of {{collectionName}}",
+    },
+    400: { content: { "application/json": { schema: errorSchema } }, description: "Bad request" },
+  },
+});
+
+const getByIdRoute = createRoute({
+  method: "get",
+  path: "/{id}",
+  tags: ["{{capitalName}}"],
+  summary: "Get {{singularName}} by ID",
+  request: {
+    params: z.object({ id: z.string().openapi({ param: { name: "id", in: "path" }, example: {{#if idIsInteger}}"1"{{else}}"abc-123"{{/if}} }) }),
+  },
+  responses: {
+    200: { content: { "application/json": { schema: itemSchema } }, description: "Single record" },
+    404: { content: { "application/json": { schema: errorSchema } }, description: "Not found" },
+  },
+});
+
+const createItemRoute = createRoute({
+  method: "post",
+  path: "/",
+  tags: ["{{capitalName}}"],
+  summary: "Create {{singularName}}",
+  request: {
+    body: { content: { "application/json": { schema: createSchema } }, required: true },
+  },
+  responses: {
+    201: { content: { "application/json": { schema: itemSchema } }, description: "Created" },
+    400: { content: { "application/json": { schema: errorSchema } }, description: "Validation error" },
+    409: { content: { "application/json": { schema: errorSchema } }, description: "Unique constraint violation" },
+  },
+});
+
+const updateItemRoute = createRoute({
+  method: "patch",
+  path: "/{id}",
+  tags: ["{{capitalName}}"],
+  summary: "Update {{singularName}}",
+  request: {
+    params: z.object({ id: z.string().openapi({ param: { name: "id", in: "path" }, example: {{#if idIsInteger}}"1"{{else}}"abc-123"{{/if}} }) }),
+    body: { content: { "application/json": { schema: updateSchema } }, required: true },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: itemSchema } }, description: "Updated" },
+    404: { content: { "application/json": { schema: errorSchema } }, description: "Not found" },
+    409: { content: { "application/json": { schema: errorSchema } }, description: "Unique constraint violation" },
+  },
+});
+
+const deleteItemRoute = createRoute({
+  method: "delete",
+  path: "/{id}",
+  tags: ["{{capitalName}}"],
+  summary: "Delete {{singularName}}",
+  request: {
+    params: z.object({ id: z.string().openapi({ param: { name: "id", in: "path" }, example: {{#if idIsInteger}}"1"{{else}}"abc-123"{{/if}} }) }),
+  },
+  responses: {
+    204: { description: "Deleted" },
+    404: { content: { "application/json": { schema: errorSchema } }, description: "Not found" },
+    409: { content: { "application/json": { schema: errorSchema } }, description: "Cannot delete: referenced by other records" },
+  },
+});
+
+export default new OpenAPIHono()
+  // GET / — list with pagination, sort, filter
+  .openapi(listRoute, async (c) => {
+    try {
+      const { page: pageStr, perPage: perPageStr, sort, filter } = c.req.valid("query");
+      const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
+      const perPage = Math.max(1, Math.min(parseInt(perPageStr || "20", 10) || 20, 100));
+      const skip = (page - 1) * perPage;
+
+      const where = buildWhere(validFields, filter);
+
+      const [totalItems, items] = await Promise.all([
+        prisma.{{collectionName}}.count({ where }),
+        prisma.{{collectionName}}.findMany({
+          where,
+          orderBy: sort
+            ? { [sort.startsWith("-") ? sort.slice(1) : sort]: sort.startsWith("-") ? "desc" : "asc" }
+            : { created_at: "desc" },
+          skip,
+          take: perPage,
+        }),
+      ]);
+
+      return c.json({
+        page,
+        perPage,
+        totalPages: Math.max(1, Math.ceil(totalItems / perPage)),
+        totalItems,
+        items,
+      });
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      return c.json({ error: { code: 400, message: err.message } }, 400);
+    }
+  })
+
+  // GET /:id
+  .openapi(getByIdRoute, async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.valid("param").id, 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.valid("param").id;
+{{/if}}
+    const row = await prisma.{{collectionName}}.findUnique({ where: { id } });
+    if (!row) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+    return c.json(row);
+  })
+
+  // POST /
+  .openapi(createItemRoute, async (c) => {
+    const data = c.req.valid("json"){{#if (eq lang "ts")}} as Record<string, unknown>{{/if}};
+
+{{#each relations}}
+    if (data["{{fieldName}}"]) {
+      const ref = await prisma.{{targetCollection}}.findUnique({ where: { id: data["{{fieldName}}"]{{#if (eq ../lang "ts")}} as string{{/if}} } });
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    try {
+      const inserted = await prisma.{{collectionName}}.create({ data: data{{#if (eq lang "ts")}} as any{{/if}} });
+      return c.json(inserted, 201);
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      if ({{{uniqueErrorCheck}}}) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+
+  // PATCH /:id
+  .openapi(updateItemRoute, async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.valid("param").id, 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.valid("param").id;
+{{/if}}
+
+    const data = c.req.valid("json"){{#if (eq lang "ts")}} as Record<string, unknown>{{/if}};
+
+{{#each relations}}
+    if (data["{{fieldName}}"] !== undefined) {
+      const ref = await prisma.{{targetCollection}}.findUnique({ where: { id: data["{{fieldName}}"]{{#if (eq ../lang "ts")}} as string{{/if}} } });
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    const existing = await prisma.{{collectionName}}.findUnique({ where: { id } });
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      const updated = await prisma.{{collectionName}}.update({ where: { id }, data: data{{#if (eq lang "ts")}} as any{{/if}} });
+      return c.json(updated);
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      if ({{{uniqueErrorCheck}}}) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+
+  // DELETE /:id
+  .openapi(deleteItemRoute, async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.valid("param").id, 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.valid("param").id;
+{{/if}}
+    const existing = await prisma.{{collectionName}}.findUnique({ where: { id } });
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      await prisma.{{collectionName}}.delete({ where: { id } });
+      return c.body(null, 204);
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      if ({{{fkErrorCheck}}}) {
+        return c.json({ error: { code: 409, message: "Cannot delete: record is referenced by other records" } }, 409);
+      }
+      throw err;
+    }
+  });

@@ -1,0 +1,65 @@
+{{#if (eq lang "ts")}}
+type PrismaWhere = Record<string, unknown>;
+
+{{/if}}
+const OPERATORS{{#if (eq lang "ts")}}: Record<string, string>{{/if}} = {
+  ">=": "gte",
+  "<=": "lte",
+  "!=": "not",
+  ">": "gt",
+  "<": "lt",
+  "~": "contains",
+  "=": "equals",
+};
+
+const OP_KEYS = Object.keys(OPERATORS).sort((a, b) => b.length - a.length);
+
+function parseValue(raw{{#if (eq lang "ts")}}: string{{/if}}){{#if (eq lang "ts")}}: unknown{{/if}} {
+  const trimmed = raw.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed === "null") return null;
+  const num = Number(trimmed);
+  if (!isNaN(num) && trimmed !== "") return num;
+  return trimmed.replace(/^["']|["']$/g, "");
+}
+
+function parseCondition(expr{{#if (eq lang "ts")}}: string{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}){{#if (eq lang "ts")}}: PrismaWhere | undefined{{/if}} {
+  for (const op of OP_KEYS) {
+    const idx = expr.indexOf(op);
+    if (idx === -1) continue;
+
+    const field = expr.slice(0, idx).trim();
+    const value = parseValue(expr.slice(idx + op.length));
+
+    if (!validFields.has(field)) return undefined;
+
+    const prismaOp = OPERATORS[op];
+    if (prismaOp === "equals") return { [field]: value };
+    if (prismaOp === "not") return { [field]: { not: value } };
+    return { [field]: { [prismaOp]: value } };
+  }
+  return undefined;
+}
+
+export function buildWhere(validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}, filter{{#if (eq lang "ts")}}: string | undefined{{/if}}){{#if (eq lang "ts")}}: PrismaWhere | undefined{{/if}} {
+  if (!filter) return undefined;
+
+  const orParts = filter.split("||").map((s{{#if (eq lang "ts")}}: string{{/if}}) => s.trim()).filter(Boolean);
+
+  if (orParts.length > 1) {
+    const conditions = orParts
+      .map((part{{#if (eq lang "ts")}}: string{{/if}}) => parseCondition(part, validFields))
+      .filter(Boolean);
+    return conditions.length > 0 ? { OR: conditions } : undefined;
+  }
+
+  const andParts = filter.split("&&").map((s{{#if (eq lang "ts")}}: string{{/if}}) => s.trim()).filter(Boolean);
+  const conditions = andParts
+    .map((part{{#if (eq lang "ts")}}: string{{/if}}) => parseCondition(part, validFields))
+    .filter(Boolean);
+
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1) return conditions[0]{{#if (eq lang "ts")}} as PrismaWhere{{/if}};
+  return { AND: conditions };
+}

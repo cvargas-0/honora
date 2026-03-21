@@ -10,6 +10,10 @@ import { generateFilterParser } from "./filter-parser.js";
 import { generateRoute } from "./routes.js";
 import { generateRoutesIndex } from "./routes-index.js";
 import { generateEntry } from "./entry.js";
+import { generatePrismaSchema } from "./prisma-schema.js";
+import { generatePrismaClient } from "./prisma-client.js";
+import { generatePrismaFilterParser } from "./prisma-filter-parser.js";
+import { generatePrismaRoute } from "./prisma-routes.js";
 
 export function generateProject(
   schema: SchemaConfig,
@@ -20,6 +24,7 @@ export function generateProject(
   const ctx: GeneratorContext = {
     lang,
     driver: schema.database.driver,
+    orm: schema.database.orm,
     middleware: schema.middleware,
     validation: schema.openapi ? "hono-zod" : schema.validation,
     openapi: schema.openapi,
@@ -27,6 +32,7 @@ export function generateProject(
 
   const files: string[] = [];
   const ext = lang === "ts" ? ".ts" : ".js";
+  const isPrisma = ctx.orm === "prisma";
 
   function write(relativePath: string, content: string) {
     writeFile(outputDir, relativePath, content);
@@ -39,15 +45,22 @@ export function generateProject(
     write("tsconfig.json", generateTsConfig());
   }
 
-  write(`drizzle.config${ext}`, generateDrizzleConfig(schema.database, ctx));
-  write(`src/db/schema${ext}`, generateDbSchema(schema.collections, ctx));
-  write(`src/db/client${ext}`, generateDbClient(schema.database, ctx));
-  write(`src/utils/filter-parser${ext}`, generateFilterParser(ctx));
+  if (isPrisma) {
+    write("prisma/schema.prisma", generatePrismaSchema(schema.collections, ctx));
+    write(`src/db/client${ext}`, generatePrismaClient(ctx));
+    write(`src/utils/filter-parser${ext}`, generatePrismaFilterParser(ctx));
+  } else {
+    write(`drizzle.config${ext}`, generateDrizzleConfig(schema.database, ctx));
+    write(`src/db/schema${ext}`, generateDbSchema(schema.collections, ctx));
+    write(`src/db/client${ext}`, generateDbClient(schema.database, ctx));
+    write(`src/utils/filter-parser${ext}`, generateFilterParser(ctx));
+  }
 
   for (const collection of schema.collections) {
+    const routeGen = isPrisma ? generatePrismaRoute : generateRoute;
     write(
       `src/routes/${collection.name}${ext}`,
-      generateRoute(collection, ctx),
+      routeGen(collection, ctx),
     );
   }
 

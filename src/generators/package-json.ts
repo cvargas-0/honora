@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import type { GeneratorContext } from "../core/context.js";
 
-function driverDeps(driver: GeneratorContext["driver"]): {
+function drizzleDriverDeps(driver: GeneratorContext["driver"]): {
   deps: Record<string, string>;
   devDeps: Record<string, string>;
 } {
@@ -27,26 +27,38 @@ export function generatePackageJson(
   outputDir: string,
   ctx: GeneratorContext,
 ): string {
-  const { lang, driver, validation, openapi } = ctx;
+  const { lang, driver, orm, validation, openapi } = ctx;
   const name = basename(outputDir);
-  const db = driverDeps(driver);
+  const isPrisma = orm === "prisma";
+
+  const db = isPrisma ? { deps: {}, devDeps: {} } : drizzleDriverDeps(driver);
+
+  const ormDeps: Record<string, string> = isPrisma
+    ? { "@prisma/client": "^6.9.0" }
+    : { "drizzle-orm": "^0.45.1", ...db.deps };
 
   const dependencies: Record<string, string> = {
     "@hono/node-server": "^1.19.11",
-    "drizzle-orm": "^0.45.1",
     hono: "^4.12.8",
     zod: "^4.3.6",
-    ...db.deps,
+    ...ormDeps,
     ...(validation === "hono-zod" && !openapi ? { "@hono/zod-validator": "^0.5.0" } : {}),
     ...(openapi ? { "@hono/zod-openapi": "^1.2.3", "@scalar/hono-api-reference": "^0.5.182" } : {}),
   };
 
-  const dbScripts: Record<string, string> = {
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-  };
+  const dbScripts: Record<string, string> = isPrisma
+    ? {
+        "db:generate": "prisma generate",
+        "db:migrate": "prisma migrate dev",
+        "db:push": "prisma db push",
+        "db:studio": "prisma studio",
+      }
+    : {
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate",
+        "db:push": "drizzle-kit push",
+        "db:studio": "drizzle-kit studio",
+      };
 
   const scripts: Record<string, string> =
     lang === "ts"
@@ -62,19 +74,21 @@ export function generatePackageJson(
           ...dbScripts,
         };
 
+  const ormDevDeps: Record<string, string> = isPrisma
+    ? { prisma: "^6.9.0" }
+    : { "drizzle-kit": "^0.31.10", ...db.devDeps };
+
   const devDependencies: Record<string, string> =
     lang === "ts"
       ? {
           "@types/node": "^25.5.0",
-          "drizzle-kit": "^0.31.10",
           tsup: "^8.5.1",
           tsx: "^4.19.0",
           typescript: "^5.9.3",
-          ...db.devDeps,
+          ...ormDevDeps,
         }
       : {
-          "drizzle-kit": "^0.31.10",
-          ...db.devDeps,
+          ...ormDevDeps,
         };
 
   const pkg: Record<string, unknown> = {

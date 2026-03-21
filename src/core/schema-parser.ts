@@ -45,13 +45,14 @@ const collectionSchema = z.object({
 const databaseSchema = z.object({
   driver: z.enum(["sqlite", "postgres", "mysql"]).optional().default("sqlite"),
   url: z.string().optional().default("./data.db"),
+  orm: z.enum(["drizzle", "prisma"]).optional().default("drizzle"),
 });
 
 /** Zod schema for the top-level schema.json configuration file. */
 const schemaConfigSchema = z.object({
   database: databaseSchema
     .optional()
-    .default(() => ({ driver: "sqlite" as const, url: "./data.db" })),
+    .default(() => ({ driver: "sqlite" as const, url: "./data.db", orm: "drizzle" as const })),
   middleware: z
     .array(z.enum(["cors", "logger"]))
     .optional()
