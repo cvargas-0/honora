@@ -3,8 +3,9 @@ import { basename, resolve } from "node:path";
 import * as p from "@clack/prompts";
 import { loadSchema } from "./core/schema-parser.js";
 import { generateProject } from "./generators/project.js";
+import pkg from "../package.json" with { type: "json" };
 
-const VERSION = "0.1.0";
+const VERSION = pkg.version;
 
 const HELP = `
 honora v${VERSION}
@@ -36,7 +37,8 @@ const VALID_MIDDLEWARE = ["cors", "logger"] as const;
 function validateProjectName(name: string | undefined): string | undefined {
   if (!name || name.trim() === "") return "Project name is required";
   if (name === ".") return undefined;
-  if (!VALID_NAME.test(name)) return "Invalid project name (use lowercase, hyphens, no spaces)";
+  if (!VALID_NAME.test(name))
+    return "Invalid project name (use lowercase, hyphens, no spaces)";
 }
 
 async function main() {
@@ -70,7 +72,9 @@ async function main() {
   let middleware: string[] | undefined = middlewareFlag
     ?.split(",")
     .map((s: string) => s.trim())
-    .filter((s: string) => VALID_MIDDLEWARE.includes(s as (typeof VALID_MIDDLEWARE)[number]));
+    .filter((s: string) =>
+      VALID_MIDDLEWARE.includes(s as (typeof VALID_MIDDLEWARE)[number]),
+    );
   const validationFlag = flagValue("validation") as Validation | undefined;
   let validation: Validation | undefined = validationFlag;
   const openapiFlag = hasFlag("openapi");
