@@ -76,15 +76,24 @@ export type DatabaseConfig = z.infer<typeof databaseSchema>;
 /** Top-level schema configuration containing database settings and collections. */
 export type SchemaConfig = z.infer<typeof schemaConfigSchema>;
 
+/** Result of loading a schema, including which keys were explicitly set. */
+export interface LoadedSchema {
+  config: SchemaConfig;
+  explicitKeys: Set<string>;
+  explicitDbKeys: Set<string>;
+}
+
 /**
  * Loads and validates a schema.json file from disk.
- * @param path - Relative or absolute path to the schema JSON file.
- * @returns The parsed and validated schema configuration.
- * @throws If the file cannot be read or fails Zod validation.
+ * Returns the validated config plus sets of explicitly provided keys,
+ * so the CLI can distinguish user-defined values from Zod defaults.
  */
-export function loadSchema(path: string): SchemaConfig {
+export function loadSchema(path: string): LoadedSchema {
   const absPath = resolve(path);
   const raw = readFileSync(absPath, "utf-8");
   const json = JSON.parse(raw);
-  return schemaConfigSchema.parse(json);
+  const explicitKeys = new Set<string>(Object.keys(json));
+  const explicitDbKeys = new Set<string>(Object.keys(json.database ?? {}));
+  const config = schemaConfigSchema.parse(json);
+  return { config, explicitKeys, explicitDbKeys };
 }

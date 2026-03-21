@@ -18,10 +18,10 @@ Arguments:
 Options:
   --schema <path>     Path to schema file (default: ./schema.json)
   --lang <ts|js>      Output language (default: ts)
-  --driver <driver>   Database driver: sqlite, postgres, mysql (default: from schema or sqlite)
-  --middleware <list>  Comma-separated: cors,logger (default: none)
-  --validation <mode> Validation mode: manual, hono-zod (default: manual)
-  --openapi           Enable OpenAPI docs with Scalar (default: false)
+  --driver <driver>   Database driver: sqlite, postgres, mysql
+  --middleware <list>  Comma-separated: cors,logger
+  --validation <mode> Validation mode: manual, hono-zod
+  --openapi           Enable OpenAPI docs with Scalar
   --force             Overwrite existing directory
   --yes               Skip prompts, use defaults
   --help              Show this help message
@@ -39,6 +39,11 @@ function validateProjectName(name: string | undefined): string | undefined {
   if (name === ".") return undefined;
   if (!VALID_NAME.test(name))
     return "Invalid project name (use lowercase, hyphens, no spaces)";
+}
+
+function cancelled(): never {
+  p.cancel("Cancelled.");
+  return process.exit(0) as never;
 }
 
 async function main() {
@@ -63,23 +68,13 @@ async function main() {
 
   const positional = args.find((a: string) => !a.startsWith("--"));
   const isNonInteractive = hasFlag("yes") || !process.stdin.isTTY;
+  const force = hasFlag("force");
+
+  // --- Step 1: Resolve projectName and schemaPath (CLI-only, always needed) ---
 
   let projectName = positional ?? flagValue("name");
-  let schemaPath = flagValue("schema");
+  let schemaPath = flagValue("schema") ?? "./schema.json";
   let lang = flagValue("lang") as "ts" | "js" | undefined;
-  let driver = flagValue("driver") as Driver | undefined;
-  const middlewareFlag = flagValue("middleware");
-  let middleware: string[] | undefined = middlewareFlag
-    ?.split(",")
-    .map((s: string) => s.trim())
-    .filter((s: string) =>
-      VALID_MIDDLEWARE.includes(s as (typeof VALID_MIDDLEWARE)[number]),
-    );
-  const validationFlag = flagValue("validation") as Validation | undefined;
-  let validation: Validation | undefined = validationFlag;
-  const openapiFlag = hasFlag("openapi");
-  let openapi: boolean | undefined = openapiFlag || undefined;
-  const force = hasFlag("force");
 
   if (isNonInteractive) {
     if (!projectName) {
@@ -91,94 +86,30 @@ async function main() {
       p.cancel(nameErr);
       process.exit(1);
     }
-    schemaPath ??= "./schema.json";
     lang ??= "ts";
-    middleware ??= [];
-    validation ??= "manual";
-    openapi ??= false;
   } else {
-    const options = await p.group(
-      {
-        projectName: () =>
-          p.text({
-            message: "Project name",
-            initialValue: projectName,
-            placeholder: "my-api",
-            validate: validateProjectName,
-          }),
-        schemaPath: () =>
-          p.text({
-            message: "Path to schema file",
-            initialValue: schemaPath ?? "./schema.json",
-            validate: (val) => {
-              if (!val) return "Schema path is required";
-              if (!existsSync(resolve(val))) return `File not found: ${val}`;
-            },
-          }),
-        lang: () =>
-          p.select({
-            message: "Language",
-            initialValue: lang ?? "ts",
-            options: [
-              { value: "ts", label: "TypeScript" },
-              { value: "js", label: "JavaScript" },
-            ],
-          }),
-        driver: () =>
-          p.select({
-            message: "Database",
-            initialValue: driver ?? "sqlite",
-            options: [
-              { value: "sqlite", label: "SQLite" },
-              { value: "postgres", label: "PostgreSQL" },
-              { value: "mysql", label: "MySQL" },
-            ],
-          }),
-        middleware: () =>
-          p.multiselect({
-            message: "Middleware",
-            options: [
-              { value: "cors", label: "CORS" },
-              { value: "logger", label: "Logger" },
-            ],
-            initialValues: middleware ?? [],
-            required: false,
-          }),
-        validation: () =>
-          p.select({
-            message: "Validation",
-            initialValue: validation ?? "manual",
-            options: [
-              { value: "manual", label: "Manual (safeParse)" },
-              { value: "hono-zod", label: "Hono Zod Validator" },
-            ],
-          }),
-        openapi: () =>
-          p.confirm({
-            message: "OpenAPI docs (Scalar)?",
-            initialValue: openapi ?? false,
-          }),
-      },
-      {
-        onCancel: () => {
-          p.cancel("Cancelled.");
-          process.exit(0);
-        },
-      },
-    );
+    const nameResult = await p.text({
+      message: "Project name",
+      initialValue: projectName,
+      placeholder: "my-api",
+      validate: validateProjectName,
+    });
+    if (p.isCancel(nameResult)) cancelled();
+    projectName = nameResult;
 
-    projectName = options.projectName;
-    schemaPath = options.schemaPath;
-    lang = options.lang as "ts" | "js";
-    driver = options.driver as Driver;
-    middleware = options.middleware as string[];
-    validation = options.validation as Validation;
-    openapi = options.openapi as boolean;
+    const schemaResult = await p.text({
+      message: "Path to schema file",
+      initialValue: schemaPath,
+      validate: (val) => {
+        if (!val) return "Schema path is required";
+        if (!existsSync(resolve(val))) return `File not found: ${val}`;
+      },
+    });
+    if (p.isCancel(schemaResult)) cancelled();
+    schemaPath = schemaResult;
   }
 
-  const isCwd = projectName === ".";
-  const outputDir = isCwd ? process.cwd() : resolve(projectName);
-  const displayName = isCwd ? basename(process.cwd()) : projectName;
+  // --- Step 2: Load schema.json (the contract) ---
 
   const absSchemaPath = resolve(schemaPath);
 
@@ -186,6 +117,117 @@ async function main() {
     p.cancel(`Schema file not found: ${absSchemaPath}`);
     process.exit(1);
   }
+
+  const loaded = (() => {
+    try {
+      return loadSchema(absSchemaPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      p.cancel(`Failed to load schema: ${msg}`);
+      return process.exit(1) as never;
+    }
+  })();
+
+  const { config: schema, explicitKeys } = loaded;
+
+  // --- Step 3: Prompt only for what's missing from schema ---
+
+  // Parse CLI flags for overrides
+  const driverFlag = flagValue("driver") as Driver | undefined;
+  const middlewareFlag = flagValue("middleware");
+  const middlewareParsed: string[] | undefined = middlewareFlag
+    ?.split(",")
+    .map((s: string) => s.trim())
+    .filter((s: string) =>
+      VALID_MIDDLEWARE.includes(s as (typeof VALID_MIDDLEWARE)[number]),
+    );
+  const validationFlag = flagValue("validation") as Validation | undefined;
+  const openapiFlag = hasFlag("openapi");
+
+  // CLI flags override schema values immediately
+  if (driverFlag) schema.database.driver = driverFlag;
+  if (middlewareFlag !== undefined)
+    schema.middleware = (middlewareParsed ?? []) as ("cors" | "logger")[];
+  if (validationFlag) schema.validation = validationFlag;
+  if (openapiFlag) schema.openapi = true;
+
+  if (!isNonInteractive) {
+    // lang: always prompt (CLI-only, not in schema)
+    if (!lang) {
+      const langResult = await p.select({
+        message: "Language",
+        initialValue: "ts" as const,
+        options: [
+          { value: "ts" as const, label: "TypeScript" },
+          { value: "js" as const, label: "JavaScript" },
+        ],
+      });
+      if (p.isCancel(langResult)) cancelled();
+      lang = langResult;
+    }
+
+    // driver: only prompt if not in schema AND not provided via flag
+    if (!explicitKeys.has("database") && !driverFlag) {
+      const driverResult = await p.select({
+        message: "Database",
+        initialValue: "sqlite" as const,
+        options: [
+          { value: "sqlite" as const, label: "SQLite" },
+          { value: "postgres" as const, label: "PostgreSQL" },
+          { value: "mysql" as const, label: "MySQL" },
+        ],
+      });
+      if (p.isCancel(driverResult)) cancelled();
+      schema.database.driver = driverResult;
+    }
+
+    // middleware: only prompt if not in schema AND not provided via flag
+    if (!explicitKeys.has("middleware") && middlewareFlag === undefined) {
+      const mwResult = await p.multiselect({
+        message: "Middleware",
+        options: [
+          { value: "cors" as const, label: "CORS" },
+          { value: "logger" as const, label: "Logger" },
+        ],
+        initialValues: [],
+        required: false,
+      });
+      if (p.isCancel(mwResult)) cancelled();
+      schema.middleware = mwResult as ("cors" | "logger")[];
+    }
+
+    // validation: only prompt if not in schema AND not provided via flag
+    if (!explicitKeys.has("validation") && !validationFlag) {
+      const valResult = await p.select({
+        message: "Validation",
+        initialValue: "manual" as const,
+        options: [
+          { value: "manual" as const, label: "Manual (safeParse)" },
+          { value: "hono-zod" as const, label: "Hono Zod Validator" },
+        ],
+      });
+      if (p.isCancel(valResult)) cancelled();
+      schema.validation = valResult;
+    }
+
+    // openapi: only prompt if not in schema AND not provided via flag
+    if (!explicitKeys.has("openapi") && !openapiFlag) {
+      const oaResult = await p.confirm({
+        message: "OpenAPI docs (Scalar)?",
+        initialValue: false,
+      });
+      if (p.isCancel(oaResult)) cancelled();
+      schema.openapi = oaResult;
+    }
+  }
+
+  lang ??= "ts";
+
+  // --- Step 4: Resolve output directory ---
+
+  const isCwd = projectName === ".";
+  const outputDir = isCwd ? process.cwd() : resolve(projectName);
+  const displayName = isCwd ? basename(process.cwd()) : projectName;
 
   if (!isCwd && existsSync(outputDir) && !force) {
     if (isNonInteractive) {
@@ -198,37 +240,10 @@ async function main() {
       message: `Directory "${projectName}" already exists. Overwrite?`,
       initialValue: false,
     });
-    if (p.isCancel(overwrite) || !overwrite) {
-      p.cancel("Cancelled.");
-      process.exit(0);
-    }
+    if (p.isCancel(overwrite) || !overwrite) cancelled();
   }
 
-  const schema = (() => {
-    try {
-      return loadSchema(absSchemaPath);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      p.cancel(`Failed to load schema: ${msg}`);
-      return process.exit(1) as never;
-    }
-  })();
-
-  // CLI/interactive values override schema.json
-  // In non-interactive mode: only override when flag was explicitly passed
-  // In interactive mode: always override (user made a choice)
-  if (driver) {
-    schema.database.driver = driver;
-  }
-  if (!isNonInteractive || middlewareFlag !== undefined) {
-    schema.middleware = (middleware ?? []) as ("cors" | "logger")[];
-  }
-  if (!isNonInteractive || validationFlag !== undefined) {
-    schema.validation = validation ?? "manual";
-  }
-  if (!isNonInteractive || openapiFlag) {
-    schema.openapi = openapi ?? false;
-  }
+  // --- Step 5: Generate project ---
 
   p.log.info(
     `Creating ${displayName} — ${schema.collections.length} collection(s) [${schema.database.driver}]`,
