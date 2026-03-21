@@ -26,6 +26,9 @@ Create a `schema.json` in your working directory:
     "driver": "sqlite",
     "url": "./data.db"
   },
+  "middleware": ["cors", "logger"],
+  "validation": "hono-zod",
+  "openapi": true,
   "collections": [
     {
       "name": "users",
@@ -70,17 +73,38 @@ honora my-api --schema ./schema.json
 honora <name> [options]
 ```
 
-| Argument / Option | Description                                    |
-| ----------------- | ---------------------------------------------- |
-| `<name>`          | Project name or `.` for current directory      |
-| `--schema <path>` | Path to schema file (default: `./schema.json`) |
-| `--lang <ts\|js>` | Output language (default: `ts`)                |
-| `--force`         | Overwrite existing directory                   |
-| `--yes`           | Skip prompts, use defaults                     |
-| `--help`          | Show help                                      |
-| `--version`       | Show version                                   |
+| Argument / Option      | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `<name>`               | Project name or `.` for current directory      |
+| `--schema <path>`      | Path to schema file (default: `./schema.json`) |
+| `--lang <ts\|js>`      | Output language (default: `ts`)                |
+| `--driver <driver>`    | Database: `sqlite`, `postgres`, `mysql`        |
+| `--middleware <list>`  | Comma-separated: `cors`, `logger`              |
+| `--validation <mode>`  | Validation: `manual`, `hono-zod`               |
+| `--openapi`            | Enable OpenAPI docs with Scalar UI             |
+| `--force`              | Overwrite existing directory                   |
+| `--yes`                | Skip prompts, use defaults                     |
+| `--help`               | Show help                                      |
+| `--version`            | Show version                                   |
 
 Without flags, honora runs interactively and prompts for each option.
+
+### Examples
+
+```bash
+# Interactive (prompts for everything)
+honora my-api
+
+# Non-interactive with all options
+honora my-api --schema ./schema.json --lang ts --driver postgres \
+  --middleware cors,logger --validation hono-zod --openapi --yes
+
+# Generate in current directory
+honora . --yes --force
+
+# TypeScript + PostgreSQL with Zod validator
+honora my-api --lang ts --driver postgres --validation hono-zod
+```
 
 ## Generated Project
 
@@ -222,6 +246,72 @@ Every collection automatically includes:
 - `id` — primary key (configurable type)
 - `created_at` — ISO timestamp, set on creation
 - `updated_at` — ISO timestamp, updated on every change
+
+## Optional Features
+
+### Database Drivers
+
+By default, projects use **SQLite**. You can choose PostgreSQL or MySQL:
+
+```json
+{
+  "database": {
+    "driver": "postgres",
+    "url": "postgresql://user:password@localhost:5432/mydb"
+  }
+}
+```
+
+Supported: `sqlite`, `postgres`, `mysql`
+
+### Middleware
+
+Enable built-in Hono middleware:
+
+```json
+{
+  "middleware": ["cors", "logger"]
+}
+```
+
+- **CORS**: Cross-Origin Resource Sharing
+- **Logger**: HTTP request logging
+
+Use the `--middleware` flag to override: `--middleware cors,logger`
+
+### Validation
+
+Choose validation strategy for request bodies:
+
+```json
+{
+  "validation": "hono-zod"
+}
+```
+
+- **`manual` (default)**: Use `safeParse()` for validation, manual error formatting
+- **`hono-zod`**: Use `@hono/zod-validator` middleware for cleaner routes
+
+Use the `--validation` flag to override: `--validation hono-zod`
+
+### OpenAPI Documentation
+
+Enable interactive API documentation with Scalar UI:
+
+```json
+{
+  "openapi": true
+}
+```
+
+When enabled:
+- `GET /api/doc` returns the OpenAPI 3.1.0 JSON spec
+- `GET /api/docs` serves the **Scalar UI** for interactive exploration
+- Routes use `@hono/zod-openapi` with typed `createRoute()` definitions
+- Validation is automatically set to `hono-zod`
+- All schemas, request bodies, and responses are documented
+
+Use the `--openapi` flag to enable: `--openapi`
 
 ## License
 

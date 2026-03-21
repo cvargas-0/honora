@@ -1,10 +1,10 @@
-import { {{{imports}}} } from "drizzle-orm/sqlite-core";
+import { {{{imports}}} } from "{{{drizzlePackage}}}";
 
 {{#each collections}}
-export const {{name}} = sqliteTable("{{name}}", {
+export const {{name}} = {{../tableConstructor}}("{{name}}", {
   id: {{{idExpression}}},
-  created_at: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
-  updated_at: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  created_at: {{{../createdAtExpr}}},
+  updated_at: {{{../updatedAtExpr}}},
 {{#each columns}}
   {{name}}: {{{expression}}},
 {{/each}}

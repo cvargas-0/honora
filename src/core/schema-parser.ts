@@ -4,21 +4,35 @@ import { resolve } from "node:path";
 
 /** Zod schema for a single field definition within a collection. */
 const fieldSchema = z.object({
-  type: z.enum(["text", "number", "integer", "boolean", "date", "json", "relation"]),
+  type: z.enum([
+    "text",
+    "number",
+    "integer",
+    "boolean",
+    "date",
+    "json",
+    "relation",
+  ]),
   required: z.boolean().optional().default(false),
   unique: z.boolean().optional().default(false),
   default: z.any().optional(),
   min: z.number().optional(),
   max: z.number().optional(),
   collection: z.string().optional(),
-  onDelete: z.enum(["restrict", "cascade", "set_null"]).optional().default("restrict"),
+  onDelete: z
+    .enum(["restrict", "cascade", "set_null"])
+    .optional()
+    .default("restrict"),
 });
 
 /** Zod schema for the id configuration of a collection. */
-const idSchema = z.object({
-  type: z.enum(["uuid", "integer", "text"]).default("uuid"),
-  autoincrement: z.boolean().optional().default(false),
-}).optional().default({ type: "uuid", autoincrement: false });
+const idSchema = z
+  .object({
+    type: z.enum(["uuid", "integer", "text"]).default("uuid"),
+    autoincrement: z.boolean().optional().default(false),
+  })
+  .optional()
+  .default({ type: "uuid", autoincrement: false });
 
 /** Zod schema for a collection definition (name + fields map). */
 const collectionSchema = z.object({
@@ -35,7 +49,15 @@ const databaseSchema = z.object({
 
 /** Zod schema for the top-level schema.json configuration file. */
 const schemaConfigSchema = z.object({
-  database: databaseSchema.optional().default(() => ({ driver: "sqlite" as const, url: "./data.db" })),
+  database: databaseSchema
+    .optional()
+    .default(() => ({ driver: "sqlite" as const, url: "./data.db" })),
+  middleware: z
+    .array(z.enum(["cors", "logger"]))
+    .optional()
+    .default([]),
+  validation: z.enum(["manual", "hono-zod"]).optional().default("manual"),
+  openapi: z.boolean().optional().default(false),
   collections: z.array(collectionSchema).min(1),
 });
 

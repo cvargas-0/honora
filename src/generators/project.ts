@@ -1,4 +1,5 @@
 import type { SchemaConfig } from "../core/schema-parser.js";
+import type { GeneratorContext } from "../core/context.js";
 import { writeFile, copyFile } from "../utils/writer.js";
 import { generatePackageJson } from "./package-json.js";
 import { generateTsConfig } from "./tsconfig.js";
@@ -16,6 +17,14 @@ export function generateProject(
   schemaPath: string,
   lang: "ts" | "js",
 ): string[] {
+  const ctx: GeneratorContext = {
+    lang,
+    driver: schema.database.driver,
+    middleware: schema.middleware,
+    validation: schema.openapi ? "hono-zod" : schema.validation,
+    openapi: schema.openapi,
+  };
+
   const files: string[] = [];
   const ext = lang === "ts" ? ".ts" : ".js";
 
@@ -24,23 +33,26 @@ export function generateProject(
     files.push(relativePath);
   }
 
-  write("package.json", generatePackageJson(outputDir, lang));
+  write("package.json", generatePackageJson(outputDir, ctx));
 
   if (lang === "ts") {
     write("tsconfig.json", generateTsConfig());
   }
 
-  write(`drizzle.config${ext}`, generateDrizzleConfig(schema.database, lang));
-  write(`src/db/schema${ext}`, generateDbSchema(schema.collections, lang));
-  write(`src/db/client${ext}`, generateDbClient(schema.database, lang));
-  write(`src/utils/filter-parser${ext}`, generateFilterParser(lang));
+  write(`drizzle.config${ext}`, generateDrizzleConfig(schema.database, ctx));
+  write(`src/db/schema${ext}`, generateDbSchema(schema.collections, ctx));
+  write(`src/db/client${ext}`, generateDbClient(schema.database, ctx));
+  write(`src/utils/filter-parser${ext}`, generateFilterParser(ctx));
 
   for (const collection of schema.collections) {
-    write(`src/routes/${collection.name}${ext}`, generateRoute(collection, lang));
+    write(
+      `src/routes/${collection.name}${ext}`,
+      generateRoute(collection, ctx),
+    );
   }
 
-  write(`src/routes/index${ext}`, generateRoutesIndex(schema, lang));
-  write(`src/index${ext}`, generateEntry(lang));
+  write(`src/routes/index${ext}`, generateRoutesIndex(schema, ctx));
+  write(`src/index${ext}`, generateEntry(ctx));
 
   copyFile(schemaPath, outputDir, "schema.json");
   files.push("schema.json");

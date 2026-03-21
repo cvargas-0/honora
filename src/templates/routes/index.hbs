@@ -1,12 +1,51 @@
+{{#if openapi}}
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { apiReference } from "@scalar/hono-api-reference";
+{{else}}
 import { Hono } from "hono";
+{{/if}}
+{{#if (includes middleware "cors")}}
+import { cors } from "hono/cors";
+{{/if}}
+{{#if (includes middleware "logger")}}
+import { logger } from "hono/logger";
+{{/if}}
 {{#each collections}}
 import {{name}} from "./{{name}}{{ext ../lang}}";
 {{/each}}
 
-export default new Hono()
-    .basePath("/api")
-    .get("/_health", (c) => c.json({ status: "ok" }))
+{{#if openapi}}
+const app = new OpenAPIHono().basePath("/api");
+{{else}}
+const app = new Hono().basePath("/api");
+{{/if}}
+
+{{#if (includes middleware "logger")}}
+app.use("*", logger());
+{{/if}}
+{{#if (includes middleware "cors")}}
+app.use("*", cors());
+{{/if}}
+
+app.get("/_health", (c) => c.json({ status: "ok" }));
+
 {{#each collections}}
-    .route("/{{name}}", {{name}})
+app.route("/{{name}}", {{name}});
 {{/each}}
 
+{{#if openapi}}
+app.doc("/doc", {
+  openapi: "3.1.0",
+  info: { title: "API", version: "0.1.0" },
+});
+
+app.get(
+  "/docs",
+  apiReference({
+    spec: { url: "/api/doc" },
+    theme: "default",
+  }),
+);
+{{/if}}
+
+export default app;

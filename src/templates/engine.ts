@@ -27,6 +27,11 @@ hbs.registerHelper("join", (arr: string[], sep: string) => arr.join(sep));
 // File extension: returns ".js" for JS output, "" for TS
 hbs.registerHelper("ext", (lang: string) => (lang === "js" ? ".js" : ""));
 
+// Array includes check
+hbs.registerHelper("includes", (arr: unknown[], value: unknown) =>
+  Array.isArray(arr) && arr.includes(value),
+);
+
 const cache = new Map<string, HandlebarsTemplateDelegate>();
 
 export function render(templateSource: string, context: object): string {

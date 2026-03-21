@@ -1,3 +1,18 @@
+{{#if (eq driver "postgres")}}
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema{{ext lang}}";
+
+const client = postgres(process.env.DATABASE_URL || {{{json dbUrl}}});
+export const db = drizzle(client, { schema });
+{{else if (eq driver "mysql")}}
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import * as schema from "./schema{{ext lang}}";
+
+const connection = await mysql.createConnection(process.env.DATABASE_URL || {{{json dbUrl}}});
+export const db = drizzle(connection, { schema, mode: "default" });
+{{else}}
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "./schema{{ext lang}}";
@@ -7,3 +22,4 @@ sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
+{{/if}}

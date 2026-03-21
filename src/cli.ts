@@ -17,6 +17,10 @@ Arguments:
 Options:
   --schema <path>     Path to schema file (default: ./schema.json)
   --lang <ts|js>      Output language (default: ts)
+  --driver <driver>   Database driver: sqlite, postgres, mysql (default: from schema or sqlite)
+  --middleware <list>  Comma-separated: cors,logger (default: none)
+  --validation <mode> Validation mode: manual, hono-zod (default: manual)
+  --openapi           Enable OpenAPI docs with Scalar (default: false)
   --force             Overwrite existing directory
   --yes               Skip prompts, use defaults
   --help              Show this help message
@@ -24,6 +28,10 @@ Options:
 `.trim();
 
 const VALID_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+
+type Driver = "sqlite" | "postgres" | "mysql";
+type Validation = "manual" | "hono-zod";
+const VALID_MIDDLEWARE = ["cors", "logger"] as const;
 
 function validateProjectName(name: string | undefined): string | undefined {
   if (!name || name.trim() === "") return "Project name is required";
@@ -51,14 +59,22 @@ async function main() {
 
   p.intro(`honora v${VERSION}`);
 
-  // Positional: honora my-api  or  honora .
   const positional = args.find((a: string) => !a.startsWith("--"));
-
   const isNonInteractive = hasFlag("yes") || !process.stdin.isTTY;
 
   let projectName = positional ?? flagValue("name");
   let schemaPath = flagValue("schema");
   let lang = flagValue("lang") as "ts" | "js" | undefined;
+  let driver = flagValue("driver") as Driver | undefined;
+  const middlewareFlag = flagValue("middleware");
+  let middleware: string[] | undefined = middlewareFlag
+    ?.split(",")
+    .map((s: string) => s.trim())
+    .filter((s: string) => VALID_MIDDLEWARE.includes(s as (typeof VALID_MIDDLEWARE)[number]));
+  const validationFlag = flagValue("validation") as Validation | undefined;
+  let validation: Validation | undefined = validationFlag;
+  const openapiFlag = hasFlag("openapi");
+  let openapi: boolean | undefined = openapiFlag || undefined;
   const force = hasFlag("force");
 
   if (isNonInteractive) {
@@ -73,6 +89,9 @@ async function main() {
     }
     schemaPath ??= "./schema.json";
     lang ??= "ts";
+    middleware ??= [];
+    validation ??= "manual";
+    openapi ??= false;
   } else {
     const options = await p.group(
       {
@@ -101,6 +120,40 @@ async function main() {
               { value: "js", label: "JavaScript" },
             ],
           }),
+        driver: () =>
+          p.select({
+            message: "Database",
+            initialValue: driver ?? "sqlite",
+            options: [
+              { value: "sqlite", label: "SQLite" },
+              { value: "postgres", label: "PostgreSQL" },
+              { value: "mysql", label: "MySQL" },
+            ],
+          }),
+        middleware: () =>
+          p.multiselect({
+            message: "Middleware",
+            options: [
+              { value: "cors", label: "CORS" },
+              { value: "logger", label: "Logger" },
+            ],
+            initialValues: middleware ?? [],
+            required: false,
+          }),
+        validation: () =>
+          p.select({
+            message: "Validation",
+            initialValue: validation ?? "manual",
+            options: [
+              { value: "manual", label: "Manual (safeParse)" },
+              { value: "hono-zod", label: "Hono Zod Validator" },
+            ],
+          }),
+        openapi: () =>
+          p.confirm({
+            message: "OpenAPI docs (Scalar)?",
+            initialValue: openapi ?? false,
+          }),
       },
       {
         onCancel: () => {
@@ -113,6 +166,10 @@ async function main() {
     projectName = options.projectName;
     schemaPath = options.schemaPath;
     lang = options.lang as "ts" | "js";
+    driver = options.driver as Driver;
+    middleware = options.middleware as string[];
+    validation = options.validation as Validation;
+    openapi = options.openapi as boolean;
   }
 
   const isCwd = projectName === ".";
@@ -153,8 +210,24 @@ async function main() {
     }
   })();
 
+  // CLI/interactive values override schema.json
+  // In non-interactive mode: only override when flag was explicitly passed
+  // In interactive mode: always override (user made a choice)
+  if (driver) {
+    schema.database.driver = driver;
+  }
+  if (!isNonInteractive || middlewareFlag !== undefined) {
+    schema.middleware = (middleware ?? []) as ("cors" | "logger")[];
+  }
+  if (!isNonInteractive || validationFlag !== undefined) {
+    schema.validation = validation ?? "manual";
+  }
+  if (!isNonInteractive || openapiFlag) {
+    schema.openapi = openapi ?? false;
+  }
+
   p.log.info(
-    `Creating ${displayName} — ${schema.collections.length} collection(s)`,
+    `Creating ${displayName} — ${schema.collections.length} collection(s) [${schema.database.driver}]`,
   );
   for (const col of schema.collections) {
     p.log.step(`  ${col.name} (${Object.keys(col.fields).length} fields)`);
