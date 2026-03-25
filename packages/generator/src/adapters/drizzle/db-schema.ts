@@ -1,7 +1,6 @@
-import { render } from "../templates/engine.js";
-import type { Collection, Field, IdConfig } from "../core/schema-parser.js";
-import type { GeneratorContext } from "../core/context.js";
-import template from "../templates/db/schema.hbs";
+import { render } from "../../templates/engine";
+import type { Collection, Field, IdConfig, GeneratorContext } from "@honora/types";
+import template from "../../templates/drizzle/schema.hbs";
 
 type Driver = GeneratorContext["driver"];
 
@@ -165,23 +164,16 @@ function columnExpression(
   return expr;
 }
 
-function systemColumns(driver: Driver): {
-  createdAt: string;
-  updatedAt: string;
-} {
+function systemColumns(driver: Driver): { createdAt: string; updatedAt: string } {
   if (driver === "postgres" || driver === "mysql") {
     return {
-      createdAt:
-        'timestamp("created_at", { mode: "string" }).notNull().defaultNow()',
-      updatedAt:
-        'timestamp("updated_at", { mode: "string" }).notNull().defaultNow()',
+      createdAt: 'timestamp("created_at", { mode: "string" }).notNull().defaultNow()',
+      updatedAt: 'timestamp("updated_at", { mode: "string" }).notNull().defaultNow()',
     };
   }
   return {
-    createdAt:
-      'text("created_at").notNull().$defaultFn(() => new Date().toISOString())',
-    updatedAt:
-      'text("updated_at").notNull().$defaultFn(() => new Date().toISOString())',
+    createdAt: 'text("created_at").notNull().$defaultFn(() => new Date().toISOString())',
+    updatedAt: 'text("updated_at").notNull().$defaultFn(() => new Date().toISOString())',
   };
 }
 
@@ -211,7 +203,6 @@ function getImports(driver: Driver, collections: Collection[]): string[] {
     if (hasDate) imports.push("timestamp");
     if (hasUuid) imports.push("uuid");
     if (hasSerial) imports.push("serial");
-    // timestamp for system columns
     if (!hasDate) imports.push("timestamp");
     return [...new Set(imports)];
   }
@@ -221,12 +212,11 @@ function getImports(driver: Driver, collections: Collection[]): string[] {
     if (hasNumber) imports.push("double");
     if (hasBool) imports.push("boolean");
     if (hasJson) imports.push("json");
-    imports.push("timestamp"); // system columns
+    imports.push("timestamp");
     if (hasSerial) imports.push("serial");
     return [...new Set(imports)];
   }
 
-  // sqlite
   const imports = ["sqliteTable", "text", "integer"];
   if (hasNumber) imports.push("real");
   return imports;
@@ -244,10 +234,7 @@ function drizzlePackage(driver: Driver): string {
   return "drizzle-orm/sqlite-core";
 }
 
-export function generateDbSchema(
-  collections: Collection[],
-  ctx: GeneratorContext,
-): string {
+export function generateDbSchema(collections: Collection[], ctx: GeneratorContext): string {
   const sorted = topologicalSort(collections);
   const { driver } = ctx;
   const sys = systemColumns(driver);

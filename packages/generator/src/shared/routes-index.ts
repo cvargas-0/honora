@@ -1,12 +1,8 @@
 import { render } from "../templates/engine.js";
-import type { SchemaConfig } from "../core/schema-parser.js";
-import type { GeneratorContext } from "../core/context.js";
-import template from "../templates/routes/index.hbs";
+import type { SchemaConfig, GeneratorContext } from "@honora/types";
+import template from "../templates/shared/routes-index.hbs";
 
-export function generateRoutesIndex(
-  schema: SchemaConfig,
-  ctx: GeneratorContext,
-): string {
+export function generateRoutesIndex(schema: SchemaConfig, ctx: GeneratorContext): string {
   return render(template, {
     lang: ctx.lang,
     middleware: ctx.middleware,

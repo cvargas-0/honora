@@ -13,6 +13,28 @@ importers:
       '@clack/prompts':
         specifier: ^1.1.0
         version: 1.1.0
+      '@honora/generator':
+        specifier: workspace:*
+        version: link:../../packages/generator
+      '@honora/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/generator:
+    dependencies:
+      '@honora/types':
+        specifier: workspace:*
+        version: link:../types
       handlebars:
         specifier: ^4.7.8
         version: 4.7.8
@@ -20,6 +42,9 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
+      '@types/handlebars':
+        specifier: '*'
+        version: 4.1.0
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -350,6 +375,10 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+
+  '@types/handlebars@4.1.0':
+    resolution: {integrity: sha512-gq9YweFKNNB1uFK71eRqsd4niVkXrxHugqWFQkeLRJvGjnxsLr16bYtcsG4tOFwmYi0Bax+wCkbf1reUfdl4kA==}
+    deprecated: This is a stub types definition. handlebars provides its own type definitions, so you do not need this installed.
 
   '@types/node@25.5.0':
     resolution: {integrity: sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==}
@@ -765,6 +794,10 @@ snapshots:
     optional: true
 
   '@types/estree@1.0.8': {}
+
+  '@types/handlebars@4.1.0':
+    dependencies:
+      handlebars: 4.7.8
 
   '@types/node@25.5.0':
     dependencies:

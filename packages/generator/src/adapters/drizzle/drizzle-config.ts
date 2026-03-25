@@ -1,7 +1,6 @@
-import { render } from "../templates/engine.js";
-import type { DatabaseConfig } from "../core/schema-parser.js";
-import type { GeneratorContext } from "../core/context.js";
-import template from "../templates/config/drizzle-config.hbs";
+import { render } from "../../templates/engine";
+import type { DatabaseConfig, GeneratorContext } from "@honora/types";
+import template from "../../templates/drizzle/drizzle-config.hbs";
 
 function drizzleDialect(driver: GeneratorContext["driver"]): string {
   if (driver === "postgres") return "postgresql";

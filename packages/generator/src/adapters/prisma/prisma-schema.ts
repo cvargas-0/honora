@@ -1,7 +1,6 @@
-import { render } from "../templates/engine.js";
-import type { Collection, Field } from "../core/schema-parser.js";
-import type { GeneratorContext } from "../core/context.js";
-import template from "../templates/prisma/schema.prisma.hbs";
+import { render } from "../../templates/engine";
+import type { Collection, Field, GeneratorContext } from "@honora/types";
+import template from "../../templates/prisma/schema.prisma.hbs";
 
 function prismaType(field: Field, driver: GeneratorContext["driver"]): string {
   const optional = !field.required ? "?" : "";
@@ -17,7 +16,7 @@ function prismaType(field: Field, driver: GeneratorContext["driver"]): string {
     case "integer":
       return `Int${optional}${unique}${defaultVal}`;
     case "boolean":
-      return `Boolean${optional}${unique}${defaultVal || (field.default === undefined ? "" : "")}`;
+      return `Boolean${optional}${unique}${defaultVal}`;
     case "date":
       return `DateTime${optional}${unique}${defaultVal}`;
     case "json":
@@ -51,10 +50,7 @@ function onDeletePrisma(strategy: string): string {
   }
 }
 
-export function generatePrismaSchema(
-  collections: Collection[],
-  ctx: GeneratorContext,
-): string {
+export function generatePrismaSchema(collections: Collection[], ctx: GeneratorContext): string {
   const collectionsData = collections.map((col) => {
     const columns = Object.entries(col.fields)
       .filter(([, f]) => f.type !== "relation")
@@ -63,7 +59,6 @@ export function generatePrismaSchema(
         prismaType: prismaType(field, ctx.driver),
       }));
 
-    // Relation FK columns (type "relation" fields rendered as String FK)
     const relationFkColumns = Object.entries(col.fields)
       .filter(([, f]) => f.type === "relation")
       .map(([name, field]) => ({

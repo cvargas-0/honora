@@ -1,29 +1,61 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-export const databaseSchema = z
-    .enum(['sqlite', 'postgres', 'mysql'])
-    .describe('The database driver to use');
+/** Zod schema for a single field definition within a collection. */
+export const fieldSchema = z.object({
+  type: z.enum([
+    "text",
+    "number",
+    "integer",
+    "boolean",
+    "date",
+    "json",
+    "relation",
+  ]),
+  required: z.boolean().optional().default(false),
+  unique: z.boolean().optional().default(false),
+  default: z.any().optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  collection: z.string().optional(),
+  onDelete: z
+    .enum(["restrict", "cascade", "set_null"])
+    .optional()
+    .default("restrict"),
+});
 
-export const databaseORMSchema = z
-    .enum(['drizzle', 'prisma'])
-    .describe('The database ORM to use');
+/** Zod schema for the id configuration of a collection. */
+export const idSchema = z
+  .object({
+    type: z.enum(["uuid", "integer", "text"]).default("uuid"),
+    autoincrement: z.boolean().optional().default(false),
+  })
+  .optional()
+  .default({ type: "uuid", autoincrement: false });
 
-export const ServerSchema = z
-    .enum(['hono'])
-    .describe('The server framework to use');
+/** Zod schema for a collection definition (name + fields map). */
+export const collectionSchema = z.object({
+  name: z.string().min(1),
+  id: idSchema,
+  fields: z.record(z.string(), fieldSchema),
+});
 
-export const MiddlewareSchema = z
-    .array(z.enum(['cors', 'logger']))
-    .describe('The middlewares to use');
+/** Zod schema for the database connection configuration. */
+export const databaseSchema = z.object({
+  driver: z.enum(["sqlite", "postgres", "mysql"]).optional().default("sqlite"),
+  url: z.string().optional().default("./data.db"),
+  orm: z.enum(["drizzle", "prisma"]).optional().default("drizzle"),
+});
 
-export const ValidationSchema = z
-    .enum(['manual', 'hono-zod'])
-    .describe('The validation strategy to use');
-
-export const OpenapiSchema = z
-    .boolean()
-    .describe('Whether to generate OpenAPI docs');
-
-export const LangSchema = z
-    .enum(['ts', 'js'])
-    .describe('The language to use');
+/** Zod schema for the top-level schema.json configuration file. */
+export const schemaConfigSchema = z.object({
+  database: databaseSchema
+    .optional()
+    .default(() => ({ driver: "sqlite" as const, url: "./data.db", orm: "drizzle" as const })),
+  middleware: z
+    .array(z.enum(["cors", "logger"]))
+    .optional()
+    .default([]),
+  validation: z.enum(["manual", "hono-zod"]).optional().default("manual"),
+  openapi: z.boolean().optional().default(false),
+  collections: z.array(collectionSchema).min(1),
+});

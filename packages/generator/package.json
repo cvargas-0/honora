@@ -1,7 +1,7 @@
 {
-  "name": "@honora/types",
-  "version": "1.0.0",
-  "description": "TypeScript types for Honora CLI",
+  "name": "@honora/generator",
+  "version": "0.1.0",
+  "description": "Project generator for Honora CLI",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -13,20 +13,15 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./schemas": {
-      "types": "./dist/schemas.d.ts",
-      "default": "./dist/schemas.js"
-    },
-    "./adapters": {
-      "types": "./dist/adapters.d.ts",
-      "default": "./dist/adapters.js"
     }
   },
   "dependencies": {
+    "@honora/types": "workspace:*",
+    "handlebars": "^4.7.8",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/handlebars": "*",
     "@types/node": "^25.5.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"

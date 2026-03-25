@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as p from "@clack/prompts";
-import { loadSchema } from "./core/schema-parser.js";
-import { generateProject } from "./generators/project.js";
-import pkg from "../package.json" with { type: "json" };
+import { loadSchema, generateProject } from "@honora/generator";
+import type { DatabaseConfig, GeneratorContext } from "@honora/types";
+import pkg from "../package.json";
 
 const VERSION = pkg.version;
 
@@ -31,9 +31,9 @@ Options:
 
 const VALID_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
-type Driver = "sqlite" | "postgres" | "mysql";
-type Orm = "drizzle" | "prisma";
-type Validation = "manual" | "hono-zod";
+type Driver = DatabaseConfig["driver"];
+type Orm = DatabaseConfig["orm"];
+type Validation = GeneratorContext["validation"];
 const VALID_MIDDLEWARE = ["cors", "logger"] as const;
 
 function validateProjectName(name: string | undefined): string | undefined {
