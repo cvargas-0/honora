@@ -1,6 +1,9 @@
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { exec } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
+import { promisify } from "node:util";
+
+const execAsync = promisify(exec);
 import * as p from "@clack/prompts";
 import { loadSchema, generateProject } from "@honora/generator";
 import type { DatabaseConfig, GeneratorContext } from "@honora/types";
@@ -348,7 +351,19 @@ async function main() {
     const sg = p.spinner();
     sg.start("Initializing git repository...");
     try {
-      execSync("git init", { cwd: outputDir, stdio: "ignore" });
+      await execAsync("git init", { cwd: outputDir });
+      writeFileSync(
+        `${outputDir}/.gitignore`,
+        [
+          "node_modules/",
+          "dist/",
+          ".env",
+          ".env.*",
+          "!.env.example",
+          "*.db",
+          "*.sqlite",
+        ].join("\n") + "\n"
+      );
       sg.stop("Git repository initialized");
     } catch {
       sg.stop("Git init failed (git not found?)");
@@ -360,7 +375,7 @@ async function main() {
     const si = p.spinner();
     si.start(`Installing dependencies with ${pkgManager}...`);
     try {
-      execSync(`${pkgManager} install`, { cwd: outputDir, stdio: "ignore" });
+      await execAsync(`${pkgManager} install`, { cwd: outputDir });
       si.stop("Dependencies installed");
     } catch {
       si.stop(`Install failed — run \`${pkgManager} install\` manually`);
