@@ -7,8 +7,8 @@ function drizzleDriverDeps(driver: GeneratorContext["driver"]): {
 } {
   if (driver === "postgres") {
     return {
-      deps: { postgres: "^3.5.0" },
-      devDeps: {},
+      deps: { "pg": "^8.16.3" },
+      devDeps: { "@types/pg": "^8.16.0" },
     };
   }
   if (driver === "mysql") {
@@ -48,31 +48,31 @@ export function generatePackageJson(
 
   const dbScripts: Record<string, string> = isPrisma
     ? {
-        "db:generate": "prisma generate",
-        "db:migrate": "prisma migrate dev",
-        "db:push": "prisma db push",
-        "db:studio": "prisma studio",
-      }
+      "db:generate": "prisma generate",
+      "db:migrate": "prisma migrate dev",
+      "db:push": "prisma db push",
+      "db:studio": "prisma studio",
+    }
     : {
-        "db:generate": "drizzle-kit generate",
-        "db:migrate": "drizzle-kit migrate",
-        "db:push": "drizzle-kit push",
-        "db:studio": "drizzle-kit studio",
-      };
+      "db:generate": "drizzle-kit generate",
+      "db:migrate": "drizzle-kit migrate",
+      "db:push": "drizzle-kit push",
+      "db:studio": "drizzle-kit studio",
+    };
 
   const scripts: Record<string, string> =
     lang === "ts"
       ? {
-          dev: "tsx watch src/index.ts",
-          build: "tsup src/index.ts --format esm --target node18 --dts",
-          start: "node dist/index.js",
-          ...dbScripts,
-        }
+        dev: "tsx watch src/index.ts",
+        build: "tsup src/index.ts --format esm --target node18 --dts",
+        start: "node dist/index.js",
+        ...dbScripts,
+      }
       : {
-          dev: "node --watch src/index.js",
-          start: "node src/index.js",
-          ...dbScripts,
-        };
+        dev: "node --watch src/index.js",
+        start: "node src/index.js",
+        ...dbScripts,
+      };
 
   const ormDevDeps: Record<string, string> = isPrisma
     ? { prisma: "^6.9.0" }
@@ -81,15 +81,15 @@ export function generatePackageJson(
   const devDependencies: Record<string, string> =
     lang === "ts"
       ? {
-          "@types/node": "^25.5.0",
-          tsup: "^8.5.1",
-          tsx: "^4.19.0",
-          typescript: "^5.9.3",
-          ...ormDevDeps,
-        }
+        "@types/node": "^25.5.0",
+        tsup: "^8.5.1",
+        tsx: "^4.19.0",
+        typescript: "^5.9.3",
+        ...ormDevDeps,
+      }
       : {
-          ...ormDevDeps,
-        };
+        ...ormDevDeps,
+      };
 
   const pkg: Record<string, unknown> = {
     name,
