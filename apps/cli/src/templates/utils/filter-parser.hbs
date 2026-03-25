@@ -1,25 +1,36 @@
-import { eq, ne, gt, gte, lt, lte, like, and, or } from "drizzle-orm";
+import { eq, ne, gt, gte, lt, lte, like, and } from "drizzle-orm";
 {{#if (eq lang "ts")}}
 import type { Column, SQL } from "drizzle-orm";
 
-export interface ParsedCondition {
-  field: string;
-  op: string;
-  value: unknown;
-}
-
-export interface ParsedFilter {
-  type: "and" | "or";
-  conditions: ParsedCondition[];
-}
+type OpFn = (col: Column, val: unknown) => SQL;
 {{/if}}
 
-const OPERATORS = ["!=", ">=", "<=", ">", "<", "~", "="];
+// Reserved query params that are not filter fields
+const RESERVED = new Set(["page", "perPage", "sort"]);
+
+{{#if (eq lang "ts")}}
+const OPS: Record<string, OpFn> = {
+  eq:   (col, val) => eq(col, val as any),
+  ne:   (col, val) => ne(col, val as any),
+  gt:   (col, val) => gt(col, val as any),
+  gte:  (col, val) => gte(col, val as any),
+  lt:   (col, val) => lt(col, val as any),
+  lte:  (col, val) => lte(col, val as any),
+  like: (col, val) => like(col, `%${val}%` as any),
+};
+{{else}}
+const OPS = {
+  eq:   (col, val) => eq(col, val),
+  ne:   (col, val) => ne(col, val),
+  gt:   (col, val) => gt(col, val),
+  gte:  (col, val) => gte(col, val),
+  lt:   (col, val) => lt(col, val),
+  lte:  (col, val) => lte(col, val),
+  like: (col, val) => like(col, `%${val}%`),
+};
+{{/if}}
 
 function parseValue(raw{{#if (eq lang "ts")}}: string{{/if}}){{#if (eq lang "ts")}}: unknown{{/if}} {
-  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-    return raw.slice(1, -1);
-  }
   if (raw === "true") return true;
   if (raw === "false") return false;
   if (raw === "null") return null;
@@ -28,65 +39,42 @@ function parseValue(raw{{#if (eq lang "ts")}}: string{{/if}}){{#if (eq lang "ts"
   return raw;
 }
 
-function parseCondition(expr{{#if (eq lang "ts")}}: string{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}){{#if (eq lang "ts")}}: ParsedCondition{{/if}} {
-  for (const op of OPERATORS) {
-    const idx = expr.indexOf(op);
-    if (idx > 0) {
-      const field = expr.slice(0, idx).trim();
-      if (!validFields.has(field)) {
-        throw new Error(`Unknown field in filter: ${field}`);
-      }
-      return {
-        field,
-        op,
-        value: parseValue(expr.slice(idx + op.length).trim()),
-      };
-    }
+/**
+ * Builds a Drizzle WHERE clause from URL query params.
+ *
+ * Supported syntaxes:
+ *   Equality:   ?color=blue           → WHERE color = 'blue'
+ *   Operators:  ?price[gte]=100       → WHERE price >= 100
+ *               ?name[like]=ferrari   → WHERE name LIKE '%ferrari%'
+ *
+ * Supported operators: eq, ne, gt, gte, lt, lte, like
+ * Multiple params are combined with AND.
+ */
+export function buildWhere(
+  columns{{#if (eq lang "ts")}}: Record<string, Column>{{/if}},
+  validFields{{#if (eq lang "ts")}}: Set<string>{{/if}},
+  queryParams{{#if (eq lang "ts")}}: Record<string, string>{{/if}}
+){{#if (eq lang "ts")}}: SQL | undefined{{/if}} {
+  const conditions{{#if (eq lang "ts")}}: SQL[]{{/if}} = [];
+
+  for (const [key, rawValue] of Object.entries(queryParams)) {
+    if (RESERVED.has(key)) continue;
+
+    // Parse "field[op]" or plain "field" (defaults to eq)
+    const bracketMatch = key.match(/^(\w+)\[(\w+)\]$/);
+    const field = bracketMatch ? bracketMatch[1] : key;
+    const opName = bracketMatch ? bracketMatch[2] : "eq";
+
+    if (!validFields.has(field)) continue;
+    const col = columns[field{{#if (eq lang "ts")}} as keyof typeof columns{{/if}}];
+    if (!col) continue;
+
+    const fn = OPS[opName{{#if (eq lang "ts")}} as keyof typeof OPS{{/if}}];
+    if (!fn) continue;
+
+    conditions.push(fn(col, parseValue(rawValue)));
   }
-  throw new Error(`Invalid filter condition: ${expr}`);
-}
 
-export function parseFilter(filter{{#if (eq lang "ts")}}: string{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}){{#if (eq lang "ts")}}: ParsedFilter[]{{/if}} {
-  if (!filter || filter.trim() === "") return [];
-
-  const orGroups = filter.split("||");
-  if (orGroups.length === 1) {
-    const andParts = orGroups[0].split("&&");
-    return [{ type: "and", conditions: andParts.map((p) => parseCondition(p.trim(), validFields)) }];
-  }
-
-  return orGroups.map((group) => {
-    const andParts = group.split("&&");
-    return { type: "and", conditions: andParts.map((p) => parseCondition(p.trim(), validFields)) };
-  });
-}
-
-function buildCondition(columns{{#if (eq lang "ts")}}: Record<string, Column>{{/if}}, field{{#if (eq lang "ts")}}: string{{/if}}, op{{#if (eq lang "ts")}}: string{{/if}}, value{{#if (eq lang "ts")}}: unknown{{/if}}){{#if (eq lang "ts")}}: SQL | undefined{{/if}} {
-  const col = columns[field];
-  if (!col) return undefined;
-  switch (op) {
-    case "=": return eq(col, value{{#if (eq lang "ts")}} as any{{/if}});
-    case "!=": return ne(col, value{{#if (eq lang "ts")}} as any{{/if}});
-    case ">": return gt(col, value{{#if (eq lang "ts")}} as any{{/if}});
-    case ">=": return gte(col, value{{#if (eq lang "ts")}} as any{{/if}});
-    case "<": return lt(col, value{{#if (eq lang "ts")}} as any{{/if}});
-    case "<=": return lte(col, value{{#if (eq lang "ts")}} as any{{/if}});
-    case "~": return like(col, `%${value}%`{{#if (eq lang "ts")}} as any{{/if}});
-    default: return undefined;
-  }
-}
-
-export function buildWhere(columns{{#if (eq lang "ts")}}: Record<string, Column>{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}, filter{{#if (eq lang "ts")}}: string | undefined{{/if}}){{#if (eq lang "ts")}}: SQL | undefined{{/if}} {
-  if (!filter) return undefined;
-  const groups = parseFilter(filter, validFields);
-  if (groups.length === 0) return undefined;
-
-  const orConditions = groups.map((group) => {
-    const andConditions = group.conditions
-      .map((c) => buildCondition(columns, c.field, c.op, c.value))
-      .filter({{#if (eq lang "ts")}}(c): c is SQL => c !== undefined{{else}}Boolean{{/if}});
-    return andConditions.length === 1 ? andConditions[0]! : and(...andConditions)!;
-  });
-
-  return orConditions.length === 1 ? orConditions[0] : or(...orConditions);
+  if (conditions.length === 0) return undefined;
+  return conditions.length === 1 ? conditions[0] : and(...conditions);
 }

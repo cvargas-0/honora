@@ -47,7 +47,6 @@ const listRoute = createRoute({
       page: z.string().optional().openapi({ example: "1" }),
       perPage: z.string().optional().openapi({ example: "20" }),
       sort: z.string().optional().openapi({ example: "-created_at" }),
-      filter: z.string().optional().openapi({ example: 'name="John"' }),
     }),
   },
   responses: {
@@ -123,12 +122,12 @@ export default new OpenAPIHono()
   // GET / — list with pagination, sort, filter
   .openapi(listRoute, async (c) => {
     try {
-      const { page: pageStr, perPage: perPageStr, sort, filter } = c.req.valid("query");
+      const { page: pageStr, perPage: perPageStr, sort } = c.req.valid("query");
       const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
       const perPage = Math.max(1, Math.min(parseInt(perPageStr || "20", 10) || 20, 100));
       const skip = (page - 1) * perPage;
 
-      const where = buildWhere(validFields, filter);
+      const where = buildWhere(validFields, c.req.query());
 
       const [totalItems, items] = await Promise.all([
         prisma.{{collectionName}}.count({ where }),

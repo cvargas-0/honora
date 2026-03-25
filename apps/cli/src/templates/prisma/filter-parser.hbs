@@ -2,17 +2,18 @@
 type PrismaWhere = Record<string, unknown>;
 
 {{/if}}
-const OPERATORS{{#if (eq lang "ts")}}: Record<string, string>{{/if}} = {
-  ">=": "gte",
-  "<=": "lte",
-  "!=": "not",
-  ">": "gt",
-  "<": "lt",
-  "~": "contains",
-  "=": "equals",
-};
+// Reserved query params that are not filter fields
+const RESERVED = new Set(["page", "perPage", "sort"]);
 
-const OP_KEYS = Object.keys(OPERATORS).sort((a, b) => b.length - a.length);
+const OPS{{#if (eq lang "ts")}}: Record<string, string>{{/if}} = {
+  eq:   "equals",
+  ne:   "not",
+  gt:   "gt",
+  gte:  "gte",
+  lt:   "lt",
+  lte:  "lte",
+  like: "contains",
+};
 
 function parseValue(raw{{#if (eq lang "ts")}}: string{{/if}}){{#if (eq lang "ts")}}: unknown{{/if}} {
   const trimmed = raw.trim();
@@ -24,42 +25,42 @@ function parseValue(raw{{#if (eq lang "ts")}}: string{{/if}}){{#if (eq lang "ts"
   return trimmed.replace(/^["']|["']$/g, "");
 }
 
-function parseCondition(expr{{#if (eq lang "ts")}}: string{{/if}}, validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}){{#if (eq lang "ts")}}: PrismaWhere | undefined{{/if}} {
-  for (const op of OP_KEYS) {
-    const idx = expr.indexOf(op);
-    if (idx === -1) continue;
+/**
+ * Builds a Prisma WHERE clause from URL query params.
+ *
+ * Supported syntaxes:
+ *   Equality:   ?color=blue           → WHERE color = 'blue'
+ *   Operators:  ?price[gte]=100       → WHERE price >= 100
+ *               ?name[like]=ferrari   → WHERE name CONTAINS 'ferrari'
+ *
+ * Supported operators: eq, ne, gt, gte, lt, lte, like
+ * Multiple params are combined with AND.
+ */
+export function buildWhere(validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}, queryParams{{#if (eq lang "ts")}}: Record<string, string>{{/if}}){{#if (eq lang "ts")}}: PrismaWhere | undefined{{/if}} {
+  const conditions{{#if (eq lang "ts")}}: PrismaWhere[]{{/if}} = [];
 
-    const field = expr.slice(0, idx).trim();
-    const value = parseValue(expr.slice(idx + op.length));
+  for (const [key, rawValue] of Object.entries(queryParams)) {
+    if (RESERVED.has(key)) continue;
 
-    if (!validFields.has(field)) return undefined;
+    // Parse "field[op]" or plain "field" (defaults to eq)
+    const bracketMatch = key.match(/^(\w+)\[(\w+)\]$/);
+    const field = bracketMatch ? bracketMatch[1] : key;
+    const opName = bracketMatch ? bracketMatch[2] : "eq";
 
-    const prismaOp = OPERATORS[op];
-    if (prismaOp === "equals") return { [field]: value };
-    if (prismaOp === "not") return { [field]: { not: value } };
-    return { [field]: { [prismaOp]: value } };
+    if (!validFields.has(field)) continue;
+
+    const prismaOp = OPS[opName{{#if (eq lang "ts")}} as keyof typeof OPS{{/if}}];
+    if (!prismaOp) continue;
+
+    const value = parseValue(rawValue);
+    if (prismaOp === "equals") {
+      conditions.push({ [field]: value });
+    } else {
+      conditions.push({ [field]: { [prismaOp]: value } });
+    }
   }
-  return undefined;
-}
-
-export function buildWhere(validFields{{#if (eq lang "ts")}}: Set<string>{{/if}}, filter{{#if (eq lang "ts")}}: string | undefined{{/if}}){{#if (eq lang "ts")}}: PrismaWhere | undefined{{/if}} {
-  if (!filter) return undefined;
-
-  const orParts = filter.split("||").map((s{{#if (eq lang "ts")}}: string{{/if}}) => s.trim()).filter(Boolean);
-
-  if (orParts.length > 1) {
-    const conditions = orParts
-      .map((part{{#if (eq lang "ts")}}: string{{/if}}) => parseCondition(part, validFields))
-      .filter(Boolean);
-    return conditions.length > 0 ? { OR: conditions } : undefined;
-  }
-
-  const andParts = filter.split("&&").map((s{{#if (eq lang "ts")}}: string{{/if}}) => s.trim()).filter(Boolean);
-  const conditions = andParts
-    .map((part{{#if (eq lang "ts")}}: string{{/if}}) => parseCondition(part, validFields))
-    .filter(Boolean);
 
   if (conditions.length === 0) return undefined;
-  if (conditions.length === 1) return conditions[0]{{#if (eq lang "ts")}} as PrismaWhere{{/if}};
+  if (conditions.length === 1) return conditions[0];
   return { AND: conditions };
 }

@@ -33,9 +33,8 @@ export default new Hono()
       const perPage = Math.max(1, Math.min(parseInt(c.req.query("perPage") || "20", 10) || 20, 100));
       const offset = (page - 1) * perPage;
       const sort = c.req.query("sort");
-      const filter = c.req.query("filter");
 
-      const where = buildWhere(columns, validFields, filter);
+      const where = buildWhere(columns, validFields, c.req.query());
 
       const [{ count: totalItems }] = await db
         .select({ count: sql{{#if (eq lang "ts")}}<number>{{/if}}`count(*)` })
