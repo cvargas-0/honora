@@ -158,7 +158,7 @@ All collection endpoints are under `/api`:
 | `PATCH`  | `/api/:collection/:id` | Update record            |
 | `DELETE` | `/api/:collection/:id` | Delete record            |
 
-### Pagination & Sorting
+### Pagination, Sorting & Filtering
 
 ```bash
 # Paginate
@@ -167,8 +167,13 @@ GET /api/users?page=2&perPage=10
 # Sort (prefix with - for descending)
 GET /api/users?sort=-created_at
 
-# Filter
-GET /api/users?filter=age>18
+# Filter — equality
+GET /api/users?is_active=true
+
+# Filter — operators: eq, ne, gt, gte, lt, lte, like
+GET /api/users?age[gte]=18
+GET /api/users?name[like]=john
+GET /api/users?age[gte]=18&is_active=true
 ```
 
 List responses:
