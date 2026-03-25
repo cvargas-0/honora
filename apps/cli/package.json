@@ -1,0 +1,48 @@
+{
+  "name": "create-honora",
+  "version": "0.2.4",
+  "description": "Generate a REST API project from a JSON schema.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "create-honora": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/cli.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "api",
+    "rest",
+    "crud",
+    "cli",
+    "schema",
+    "scaffold",
+    "codegen"
+  ],
+  "author": {
+    "name": "Camilo Vargas",
+    "url": "https://cvargas.dev"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "handlebars": "^4.7.8",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
