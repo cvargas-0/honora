@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { SchemaConfig, GeneratorContext } from "@honora/types";
 import { writeFile, copyFile } from "./writer.js";
 import { getAdapter } from "./adapters/registry.js";
@@ -63,6 +64,16 @@ export function generateProject(
 
   copyFile(schemaPath, outputDir, "schema.json");
   files.push("schema.json");
+
+  // .env — sensible defaults per driver
+  const envLines: string[] = ["PORT=3000"];
+  const defaultUrls: Record<string, string> = {
+    sqlite: "./data.db",
+    postgres: "postgresql://localhost:5432/" + basename(outputDir),
+    mysql: "mysql://root@localhost:3306/" + basename(outputDir),
+  };
+  envLines.push(`DATABASE_URL=${defaultUrls[schema.database.driver] ?? "./data.db"}`);
+  write(".env", envLines.join("\n") + "\n");
 
   return files;
 }

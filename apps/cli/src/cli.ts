@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as p from "@clack/prompts";
@@ -24,10 +25,23 @@ Options:
   --validation <mode> Validation mode: manual, hono-zod
   --openapi           Enable OpenAPI docs with Scalar
   --force             Overwrite existing directory
+  --git               Initialize git repository (default with --yes)
+  --no-git            Skip git initialization
+  --install           Install dependencies (default with --yes)
+  --no-install        Skip dependency installation
+  --pkg-manager <pm>  Package manager: npm, pnpm, yarn, bun
   --yes               Skip prompts, use defaults
   --help              Show this help message
   --version           Show version number
 `.trim();
+
+function detectPackageManager(): string {
+  const agent = process.env.npm_config_user_agent ?? "";
+  if (agent.includes("pnpm/")) return "pnpm";
+  if (agent.includes("yarn/")) return "yarn";
+  if (agent.includes("bun/")) return "bun";
+  return "npm";
+}
 
 const VALID_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
@@ -146,6 +160,13 @@ async function main() {
     );
   const validationFlag = flagValue("validation") as Validation | undefined;
   const openapiFlag = hasFlag("openapi");
+  const gitFlag = hasFlag("git") ? true : hasFlag("no-git") ? false : undefined;
+  const installFlag = hasFlag("install")
+    ? true
+    : hasFlag("no-install")
+      ? false
+      : undefined;
+  const pkgManagerFlag = flagValue("pkg-manager");
 
   // CLI flags override schema values immediately
   if (driverFlag) schema.database.driver = driverFlag;
@@ -154,6 +175,10 @@ async function main() {
     schema.middleware = (middlewareParsed ?? []) as ("cors" | "logger")[];
   if (validationFlag) schema.validation = validationFlag;
   if (openapiFlag) schema.openapi = true;
+
+  let interactiveInstall: boolean | undefined;
+  let interactiveGit: boolean | undefined;
+  let interactivePkgManager: string | undefined;
 
   if (!isNonInteractive) {
     // lang: always prompt (CLI-only, not in schema)
@@ -237,9 +262,48 @@ async function main() {
       if (p.isCancel(oaResult)) cancelled();
       schema.openapi = oaResult;
     }
+
+    // install dependencies
+    if (installFlag === undefined) {
+      const installResult = await p.confirm({
+        message: "Install dependencies?",
+        initialValue: true,
+      });
+      if (p.isCancel(installResult)) cancelled();
+      if (installResult && pkgManagerFlag === undefined) {
+        const pmResult = await p.select({
+          message: "Package manager",
+          initialValue: detectPackageManager(),
+          options: [
+            { value: "npm", label: "npm" },
+            { value: "pnpm", label: "pnpm" },
+            { value: "yarn", label: "yarn" },
+            { value: "bun", label: "bun" },
+          ],
+        });
+        if (p.isCancel(pmResult)) cancelled();
+        interactivePkgManager = pmResult as string;
+      }
+      interactiveInstall = installResult;
+    }
+
+    // git init
+    if (gitFlag === undefined) {
+      const gitResult = await p.confirm({
+        message: "Initialize git repository?",
+        initialValue: true,
+      });
+      if (p.isCancel(gitResult)) cancelled();
+      interactiveGit = gitResult;
+    }
   }
 
   lang ??= "ts";
+
+  const shouldGit = gitFlag ?? interactiveGit ?? isNonInteractive;
+  const shouldInstall = installFlag ?? interactiveInstall ?? isNonInteractive;
+  const pkgManager =
+    pkgManagerFlag ?? interactivePkgManager ?? detectPackageManager();
 
   // --- Step 4: Resolve output directory ---
 
@@ -279,16 +343,38 @@ async function main() {
 
   p.note(files.map((f) => `  ${f}`).join("\n"), outputDir);
 
-  if (isCwd) {
-    p.log.info("Next steps:");
-    p.log.step("  npm install");
-    p.log.step("  npm run dev");
-  } else {
-    p.log.info("Next steps:");
-    p.log.step(`  cd ${projectName}`);
-    p.log.step("  npm install");
-    p.log.step("  npm run dev");
+  // --- Post-generation: git init ---
+  if (shouldGit) {
+    const sg = p.spinner();
+    sg.start("Initializing git repository...");
+    try {
+      execSync("git init", { cwd: outputDir, stdio: "ignore" });
+      sg.stop("Git repository initialized");
+    } catch {
+      sg.stop("Git init failed (git not found?)");
+    }
   }
+
+  // --- Post-generation: install dependencies ---
+  if (shouldInstall) {
+    const si = p.spinner();
+    si.start(`Installing dependencies with ${pkgManager}...`);
+    try {
+      execSync(`${pkgManager} install`, { cwd: outputDir, stdio: "ignore" });
+      si.stop("Dependencies installed");
+    } catch {
+      si.stop(`Install failed — run \`${pkgManager} install\` manually`);
+    }
+  }
+
+  // --- Next steps (skip already-done actions) ---
+  const steps: string[] = [];
+  if (!isCwd) steps.push(`  cd ${projectName}`);
+  if (!shouldInstall) steps.push(`  ${pkgManager} install`);
+  steps.push(`  ${pkgManager} run dev`);
+
+  p.log.info("Next steps:");
+  for (const step of steps) p.log.step(step);
 
   p.outro("Done!");
 }
