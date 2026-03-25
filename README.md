@@ -2,14 +2,13 @@
 
 Generate a complete REST API project from a single JSON schema file.
 
-Define your collections in `schema.json`, run `honora`, and get a ready-to-run project with CRUD endpoints, validation, pagination, filtering, and sorting. No runtime dependency on honora — it generates plain source code you own.
+Define your collections in `schema.json`, run `create-honora`, and get a ready-to-run project with CRUD endpoints, validation, pagination, filtering, and sorting. No runtime dependency on honora — it generates plain source code you own.
 
 ## Quick Start
 
 ```bash
-npx honora my-api
+npx create-honora my-api
 cd my-api
-npm install
 npx drizzle-kit push
 npm run dev
 ```
@@ -64,28 +63,31 @@ Create a `schema.json` in your working directory:
 Then run:
 
 ```bash
-honora my-api --schema ./schema.json
+npx create-honora my-api --schema ./schema.json
 ```
 
 ## CLI Usage
 
 ```
-honora <name> [options]
+create-honora <name> [options]
 ```
 
-| Argument / Option      | Description                                    |
-| ---------------------- | ---------------------------------------------- |
-| `<name>`               | Project name or `.` for current directory      |
-| `--schema <path>`      | Path to schema file (default: `./schema.json`) |
-| `--lang <ts\|js>`      | Output language (default: `ts`)                |
-| `--driver <driver>`    | Database: `sqlite`, `postgres`, `mysql`        |
-| `--middleware <list>`  | Comma-separated: `cors`, `logger`              |
-| `--validation <mode>`  | Validation: `manual`, `hono-zod`               |
-| `--openapi`            | Enable OpenAPI docs with Scalar UI             |
-| `--force`              | Overwrite existing directory                   |
-| `--yes`                | Skip prompts, use defaults                     |
-| `--help`               | Show help                                      |
-| `--version`            | Show version                                   |
+| Argument / Option        | Description                                    |
+| ------------------------ | ---------------------------------------------- |
+| `<name>`                 | Project name or `.` for current directory      |
+| `--schema <path>`        | Path to schema file (default: `./schema.json`) |
+| `--lang <ts\|js>`        | Output language (default: `ts`)                |
+| `--driver <driver>`      | Database: `sqlite`, `postgres`, `mysql`        |
+| `--middleware <list>`    | Comma-separated: `cors`, `logger`              |
+| `--validation <mode>`    | Validation: `manual`, `hono-zod`               |
+| `--openapi`              | Enable OpenAPI docs with Scalar UI             |
+| `--force`                | Overwrite existing directory                   |
+| `--git` / `--no-git`     | Initialize git repository (default: yes)       |
+| `--install` / `--no-install` | Install dependencies (default: yes)        |
+| `--pkg-manager <pm>`     | Package manager: `npm`, `pnpm`, `yarn`, `bun`  |
+| `--yes`                  | Skip prompts, use defaults                     |
+| `--help`                 | Show help                                      |
+| `--version`              | Show version                                   |
 
 Without flags, honora runs interactively and prompts for each option.
 
@@ -93,23 +95,27 @@ Without flags, honora runs interactively and prompts for each option.
 
 ```bash
 # Interactive (prompts for everything)
-honora my-api
+npx create-honora my-api
 
 # Non-interactive with all options
-honora my-api --schema ./schema.json --lang ts --driver postgres \
+npx create-honora my-api --schema ./schema.json --lang ts --driver postgres \
   --middleware cors,logger --validation hono-zod --openapi --yes
 
 # Generate in current directory
-honora . --yes --force
+npx create-honora . --yes --force
 
 # TypeScript + PostgreSQL with Zod validator
-honora my-api --lang ts --driver postgres --validation hono-zod
+npx create-honora my-api --lang ts --driver postgres --validation hono-zod
+
+# Skip git and install
+npx create-honora my-api --no-git --no-install
 ```
 
 ## Generated Project
 
 ```
 my-api/
+  .gitignore
   package.json
   tsconfig.json
   drizzle.config.ts
