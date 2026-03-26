@@ -27,7 +27,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/cvargas-0/honora.git",
+    "url": "git+https://github.com/cvargas-0/honora.git",
     "directory": "packages/generator"
   },
   "publishConfig": {
