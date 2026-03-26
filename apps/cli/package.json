@@ -35,6 +35,11 @@
     "name": "Camilo Vargas",
     "url": "https://cvargas.dev"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cvargas-0/honora.git",
+    "directory": "apps/cli"
+  },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@honora/generator": "workspace:*",
