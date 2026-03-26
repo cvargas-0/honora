@@ -8,11 +8,11 @@ export default defineConfig({
   shims: true,
   minify: true,
   clean: true,
-  dts: true,
   sourcemap: true,
   banner: {
     js: "#!/usr/bin/env node",
   },
+  noExternal: ["@honora/generator", "@honora/types"],
   loader: {
     ".hbs": "text",
   },

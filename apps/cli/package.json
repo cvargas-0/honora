@@ -1,6 +1,6 @@
 {
   "name": "create-honora",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Generate a REST API project from a JSON schema.",
   "license": "MIT",
   "type": "module",
@@ -42,11 +42,11 @@
     "directory": "apps/cli"
   },
   "dependencies": {
-    "@clack/prompts": "^1.1.0",
-    "@honora/generator": "workspace:*",
-    "@honora/types": "workspace:*"
+    "@clack/prompts": "^1.1.0"
   },
   "devDependencies": {
+    "@honora/generator": "workspace:*",
+    "@honora/types": "workspace:*",
     "@types/node": "^25.5.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
