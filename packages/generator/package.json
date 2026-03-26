@@ -1,13 +1,37 @@
 {
   "name": "@honora/generator",
-  "version": "0.1.0",
-  "description": "Project generator for Honora CLI",
+  "version": "0.4.3",
+  "description": "Code generation engine for Honora — scaffolds complete Hono REST API projects from a JSON schema",
   "license": "MIT",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "honora",
+    "generator",
+    "codegen",
+    "scaffold",
+    "rest",
+    "api",
+    "hono",
+    "drizzle",
+    "prisma",
+    "schema"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cvargas-0/honora.git",
+    "directory": "packages/generator"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

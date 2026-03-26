@@ -1,13 +1,34 @@
 {
   "name": "@honora/types",
-  "version": "1.0.0",
-  "description": "TypeScript types for Honora CLI",
+  "version": "0.4.3",
+  "description": "TypeScript types and schemas for Honora — the REST API code generator",
   "license": "MIT",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "honora",
+    "types",
+    "schema",
+    "rest",
+    "api",
+    "codegen",
+    "hono"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cvargas-0/honora.git",
+    "directory": "packages/types"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
