@@ -1,6 +1,6 @@
 {
   "name": "create-honora",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Generate a REST API project from a JSON schema.",
   "license": "MIT",
   "type": "module",
