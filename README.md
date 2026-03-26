@@ -7,9 +7,18 @@ Define your collections in `schema.json`, run `create-honora`, and get a ready-t
 ## Quick Start
 
 ```bash
-npx create-honora my-api
+# npm
+npx create-honora@latest my-api
+
+# pnpm
+pnpm create honora@latest my-api
+
+# bun
+bun create honora@latest my-api
+```
+
+```bash
 cd my-api
-npx drizzle-kit push
 npm run dev
 ```
 
@@ -17,7 +26,35 @@ Your API is running at `http://localhost:3000`.
 
 ## Schema
 
-Create a `schema.json` in your working directory:
+The `schema.json` is the **contract** that defines your project. Only `collections` is required — all other top-level fields are optional and will be prompted interactively by the CLI if not provided.
+
+| Field         | Required | Default                | Description                        |
+| ------------- | -------- | ---------------------- | ---------------------------------- |
+| `collections` | **Yes**  | —                      | Array of data collections (tables) |
+| `database`    | No       | `sqlite` + `./data.db` | Database driver, URL, and ORM      |
+| `middleware`  | No       | `[]`                   | Middleware to enable               |
+| `validation`  | No       | `manual`               | Validation strategy                |
+| `openapi`     | No       | `false`                | Enable OpenAPI documentation       |
+
+### Minimum valid schema
+
+```json
+{
+  "collections": [
+    {
+      "name": "users",
+      "fields": {
+        "name": { "type": "text", "required": true },
+        "email": { "type": "text", "required": true, "unique": true }
+      }
+    }
+  ]
+}
+```
+
+The CLI will prompt for `database`, `middleware`, `validation`, and `openapi` if they are absent. Any field present in the schema is used as-is — no prompt shown.
+
+### Full schema example
 
 ```json
 {
@@ -72,22 +109,22 @@ npx create-honora my-api --schema ./schema.json
 create-honora <name> [options]
 ```
 
-| Argument / Option        | Description                                    |
-| ------------------------ | ---------------------------------------------- |
-| `<name>`                 | Project name or `.` for current directory      |
-| `--schema <path>`        | Path to schema file (default: `./schema.json`) |
-| `--lang <ts\|js>`        | Output language (default: `ts`)                |
-| `--driver <driver>`      | Database: `sqlite`, `postgres`, `mysql`        |
-| `--middleware <list>`    | Comma-separated: `cors`, `logger`              |
-| `--validation <mode>`    | Validation: `manual`, `hono-zod`               |
-| `--openapi`              | Enable OpenAPI docs with Scalar UI             |
-| `--force`                | Overwrite existing directory                   |
-| `--git` / `--no-git`     | Initialize git repository (default: yes)       |
-| `--install` / `--no-install` | Install dependencies (default: yes)        |
-| `--pkg-manager <pm>`     | Package manager: `npm`, `pnpm`, `yarn`, `bun`  |
-| `--yes`                  | Skip prompts, use defaults                     |
-| `--help`                 | Show help                                      |
-| `--version`              | Show version                                   |
+| Argument / Option            | Description                                    |
+| ---------------------------- | ---------------------------------------------- |
+| `<name>`                     | Project name or `.` for current directory      |
+| `--schema <path>`            | Path to schema file (default: `./schema.json`) |
+| `--lang <ts\|js>`            | Output language (default: `ts`)                |
+| `--driver <driver>`          | Database: `sqlite`, `postgres`, `mysql`        |
+| `--middleware <list>`        | Comma-separated: `cors`, `logger`              |
+| `--validation <mode>`        | Validation: `manual`, `hono-zod`               |
+| `--openapi`                  | Enable OpenAPI docs with Scalar UI             |
+| `--force`                    | Overwrite existing directory                   |
+| `--git` / `--no-git`         | Initialize git repository (default: yes)       |
+| `--install` / `--no-install` | Install dependencies (default: yes)            |
+| `--pkg-manager <pm>`         | Package manager: `npm`, `pnpm`, `yarn`, `bun`  |
+| `--yes`                      | Skip prompts, use defaults                     |
+| `--help`                     | Show help                                      |
+| `--version`                  | Show version                                   |
 
 Without flags, honora runs interactively and prompts for each option.
 
@@ -316,6 +353,7 @@ Enable interactive API documentation with Scalar UI:
 ```
 
 When enabled:
+
 - `GET /api/doc` returns the OpenAPI 3.1.0 JSON spec
 - `GET /api/docs` serves the **Scalar UI** for interactive exploration
 - Routes use `@hono/zod-openapi` with typed `createRoute()` definitions
@@ -327,3 +365,5 @@ Use the `--openapi` flag to enable: `--openapi`
 ## License
 
 [MIT](LICENSE)
+
+Build with ❤️ by [Camilo Vargas](https://cvargas.dev)

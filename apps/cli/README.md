@@ -3,7 +3,14 @@
 Generate a complete REST API project from a single JSON schema file.
 
 ```bash
-npx create-honora my-api
+# npm
+npx create-honora@latest my-api
+
+# pnpm
+pnpm create honora@latest my-api
+
+# bun
+bun create honora@latest my-api
 ```
 
 ## What it does
@@ -24,7 +31,7 @@ No runtime dependency on honora — you own the generated code.
 ## Quick Start
 
 ```bash
-npx create-honora my-api
+npx create-honora@latest my-api
 cd my-api
 npm install
 npm run dev
