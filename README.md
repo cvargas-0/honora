@@ -1,8 +1,8 @@
 # Honora
 
-Generate a complete REST API project from a single JSON schema file.
+A monorepo for **Honora**, a REST API code generator that scaffolds complete, production-ready Hono projects from a single JSON schema file.
 
-Define your collections in `schema.json`, run `create-honora`, and get a ready-to-run project with CRUD endpoints, validation, pagination, filtering, and sorting. No runtime dependency on honora — it generates plain source code you own.
+Define your data model in `schema.json`, run `create-honora`, and get a full project with CRUD endpoints, pagination, filtering, sorting, validation, and optional OpenAPI documentation. **No runtime dependency** — you own the generated code.
 
 ## Quick Start
 
@@ -17,350 +17,157 @@ pnpm create honora@latest my-api
 bun create honora@latest my-api
 ```
 
-```bash
-cd my-api
-npm run dev
+## Monorepo Structure
+
+```
+honora/
+├── apps/
+│   └── cli/                     # create-honora CLI tool
+│       └── README.md            # CLI usage & options
+├── packages/
+│   ├── types/                   # @honora/types — shared TypeScript schemas
+│   └── generator/               # @honora/generator — code generation engine
+└── README.md                    # This file
 ```
 
-Your API is running at `http://localhost:3000`.
+### [`apps/cli`](apps/cli) — Create Honora CLI
 
-## Schema
+The user-facing CLI tool. Interactive or non-interactive project scaffolding with schema validation, option prompts, and file generation.
 
-The `schema.json` is the **contract** that defines your project. Only `collections` is required — all other top-level fields are optional and will be prompted interactively by the CLI if not provided.
+- **Published as**: `create-honora`
+- **Entry point**: `npx create-honora@latest <project-name>`
+- **See**: [apps/cli/README.md](apps/cli/README.md) for full CLI usage and examples
 
-| Field         | Required | Default                | Description                        |
-| ------------- | -------- | ---------------------- | ---------------------------------- |
-| `collections` | **Yes**  | —                      | Array of data collections (tables) |
-| `database`    | No       | `sqlite` + `./data.db` | Database driver, URL, and ORM      |
-| `middleware`  | No       | `[]`                   | Middleware to enable               |
-| `validation`  | No       | `manual`               | Validation strategy                |
-| `openapi`     | No       | `false`                | Enable OpenAPI documentation       |
+### [`packages/types`](packages/types) — @honora/types
 
-### Minimum valid schema
+TypeScript types and Zod schemas for the Honora ecosystem. Defines the contract for project schemas, field types, and validation rules.
 
-```json
-{
-  "collections": [
-    {
-      "name": "users",
-      "fields": {
-        "name": { "type": "text", "required": true },
-        "email": { "type": "text", "required": true, "unique": true }
-      }
-    }
-  ]
-}
-```
+- **Published as**: `@honora/types`
+- **Exports**: Core types, schema validators, and adapter interfaces
+- **Used by**: Generator, CLI, and generated projects
 
-The CLI will prompt for `database`, `middleware`, `validation`, and `openapi` if they are absent. Any field present in the schema is used as-is — no prompt shown.
+### [`packages/generator`](packages/generator) — @honora/generator
 
-### Full schema example
+Core code generation engine. Takes a validated schema and context, renders Handlebars templates, and writes project files.
 
-```json
-{
-  "database": {
-    "driver": "sqlite",
-    "url": "./data.db"
-  },
-  "middleware": ["cors", "logger"],
-  "validation": "hono-zod",
-  "openapi": true,
-  "collections": [
-    {
-      "name": "users",
-      "id": { "type": "uuid" },
-      "fields": {
-        "name": { "type": "text", "required": true },
-        "email": { "type": "text", "required": true, "unique": true },
-        "age": { "type": "integer", "min": 0, "max": 150 },
-        "is_active": { "type": "boolean", "default": true },
-        "profile": { "type": "json" }
-      }
-    },
-    {
-      "name": "posts",
-      "id": { "type": "uuid" },
-      "fields": {
-        "user_id": {
-          "type": "relation",
-          "collection": "users",
-          "required": true,
-          "onDelete": "cascade"
-        },
-        "title": { "type": "text", "required": true },
-        "body": { "type": "text", "required": true },
-        "published_at": { "type": "date" },
-        "views": { "type": "integer", "default": 0 }
-      }
-    }
-  ]
-}
-```
+- **Published as**: `@honora/generator`
+- **Key responsibility**: Schema → file generation logic
+- **Features**: Multi-language output (TS/JS), multi-driver support (SQLite/PostgreSQL/MySQL), optional middleware & validation
 
-Then run:
+## Development
+
+### Prerequisites
+
+- **Node.js**: 22.17.1+
+- **pnpm**: 10.6.5+
+
+### Setup
 
 ```bash
-npx create-honora my-api --schema ./schema.json
+git clone https://github.com/cvargas-0/honora
+cd honora
+pnpm install
 ```
 
-## CLI Usage
-
-```
-create-honora <name> [options]
-```
-
-| Argument / Option            | Description                                    |
-| ---------------------------- | ---------------------------------------------- |
-| `<name>`                     | Project name or `.` for current directory      |
-| `--schema <path>`            | Path to schema file (default: `./schema.json`) |
-| `--lang <ts\|js>`            | Output language (default: `ts`)                |
-| `--driver <driver>`          | Database: `sqlite`, `postgres`, `mysql`        |
-| `--middleware <list>`        | Comma-separated: `cors`, `logger`              |
-| `--validation <mode>`        | Validation: `manual`, `hono-zod`               |
-| `--openapi`                  | Enable OpenAPI docs with Scalar UI             |
-| `--force`                    | Overwrite existing directory                   |
-| `--git` / `--no-git`         | Initialize git repository (default: yes)       |
-| `--install` / `--no-install` | Install dependencies (default: yes)            |
-| `--pkg-manager <pm>`         | Package manager: `npm`, `pnpm`, `yarn`, `bun`  |
-| `--yes`                      | Skip prompts, use defaults                     |
-| `--help`                     | Show help                                      |
-| `--version`                  | Show version                                   |
-
-Without flags, honora runs interactively and prompts for each option.
-
-### Examples
+### Build All Packages
 
 ```bash
-# Interactive (prompts for everything)
-npx create-honora my-api
-
-# Non-interactive with all options
-npx create-honora my-api --schema ./schema.json --lang ts --driver postgres \
-  --middleware cors,logger --validation hono-zod --openapi --yes
-
-# Generate in current directory
-npx create-honora . --yes --force
-
-# TypeScript + PostgreSQL with Zod validator
-npx create-honora my-api --lang ts --driver postgres --validation hono-zod
-
-# Skip git and install
-npx create-honora my-api --no-git --no-install
+pnpm build
 ```
 
-## Generated Project
-
-```
-my-api/
-  .gitignore
-  package.json
-  tsconfig.json
-  drizzle.config.ts
-  schema.json
-  src/
-    index.ts              # Hono server entry
-    db/
-      schema.ts           # Drizzle ORM table definitions
-      client.ts           # Database connection
-    routes/
-      index.ts            # Route mounting
-      users.ts            # CRUD for users
-      posts.ts            # CRUD for posts
-    utils/
-      filter-parser.ts    # Query filter parser
-```
-
-### Generated Scripts
+### Build Specific Package
 
 ```bash
-npm run dev           # Start dev server (with watch)
-npm run build         # Build for production
-npm start             # Run production build
-npm run db:generate   # Generate migration files
-npm run db:migrate    # Run migrations
-npm run db:push       # Push schema directly (dev)
-npm run db:studio     # Open Drizzle Studio
+pnpm -F @honora/types build
+pnpm -F @honora/generator build
+pnpm -F create-honora build
 ```
 
-## API Endpoints
-
-All collection endpoints are under `/api`:
-
-| Method   | Path                   | Description              |
-| -------- | ---------------------- | ------------------------ |
-| `GET`    | `/api/_health`         | Health check             |
-| `GET`    | `/api/:collection`     | List records (paginated) |
-| `GET`    | `/api/:collection/:id` | Get single record        |
-| `POST`   | `/api/:collection`     | Create record            |
-| `PATCH`  | `/api/:collection/:id` | Update record            |
-| `DELETE` | `/api/:collection/:id` | Delete record            |
-
-### Pagination, Sorting & Filtering
+### Watch Mode
 
 ```bash
-# Paginate
-GET /api/users?page=2&perPage=10
-
-# Sort (prefix with - for descending)
-GET /api/users?sort=-created_at
-
-# Filter — equality
-GET /api/users?is_active=true
-
-# Filter — operators: eq, ne, gt, gte, lt, lte, like
-GET /api/users?age[gte]=18
-GET /api/users?name[like]=john
-GET /api/users?age[gte]=18&is_active=true
+pnpm -F @honora/types dev
+pnpm -F @honora/generator dev
+pnpm -F create-honora dev
 ```
 
-List responses:
+### Type Checking
 
-```json
-{
-  "page": 1,
-  "perPage": 20,
-  "totalPages": 1,
-  "totalItems": 1,
-  "items": [...]
-}
+```bash
+pnpm -r typecheck
 ```
 
-### Error Responses
+### Test Generated Projects
 
-```json
-{
-  "error": {
-    "code": 400,
-    "message": "Validation failed",
-    "details": [{ "field": "email", "message": "Required" }]
-  }
-}
+```bash
+node apps/cli/dist/cli.js my-test-api --yes
+cd my-test-api
+pnpm install
+pnpm run dev
 ```
 
-| Code  | Meaning                           |
-| ----- | --------------------------------- |
-| `400` | Validation error or invalid input |
-| `404` | Record not found                  |
-| `409` | Unique constraint violation       |
+## Architecture Overview
 
-## Field Types
+**Honora** works in three phases:
 
-| Type       | Description     | Options                  |
-| ---------- | --------------- | ------------------------ |
-| `text`     | String          | `min`, `max`, `unique`   |
-| `number`   | Float           | `min`, `max`             |
-| `integer`  | Integer         | `min`, `max`             |
-| `boolean`  | Boolean         | `default`                |
-| `date`     | ISO date string |                          |
-| `json`     | JSON object     |                          |
-| `relation` | Foreign key     | `collection`, `onDelete` |
+1. **Schema Validation** (types package)
+   - User provides `schema.json`
+   - Zod validators ensure structure & constraints
 
-### ID Types
+2. **Code Generation** (generator package)
+   - Build `GeneratorContext` (lang, driver, middleware, validation mode)
+   - Render Handlebars templates with context
+   - Generate project structure: database schema, CRUD routes, config files
 
-Each collection can specify its ID strategy:
+3. **Project Scaffolding** (CLI)
+   - Interactive or non-interactive prompts
+   - Call generator
+   - Install dependencies, initialize git
 
-```json
-{ "id": { "type": "uuid" } }
-{ "id": { "type": "integer", "autoincrement": true } }
-{ "id": { "type": "text" } }
+## Features
+
+- **Multi-language**: TypeScript or JavaScript output
+- **Multi-database**: SQLite, PostgreSQL, MySQL support
+- **CRUD Endpoints**: Full RESTful API with pagination, sorting, filtering
+- **Validation**: Manual or automatic (Zod-based)
+- **Middleware**: Optional CORS, logging
+- **OpenAPI**: Generate interactive documentation with Scalar UI
+- **Database Schema**: Drizzle ORM table definitions and migrations
+- **Zero Runtime Dependency**: Generated code is yours — no honora required
+
+## Common Development Tasks
+
+### Add a New Field Type
+
+1. Update schema definition in `packages/types`
+2. Add Drizzle column expression in `packages/generator` (all drivers)
+3. Add Zod validation in `packages/generator`
+4. Update templates if needed
+
+### Add a New Database Driver
+
+1. Extend schema validation in `packages/types`
+2. Add driver detection & imports in `packages/generator`
+3. Update DB schema and client templates
+4. Add error handling for driver-specific error codes
+5. Update dependencies in CLI
+
+### Test CLI Changes
+
+```bash
+pnpm -F create-honora build
+node apps/cli/dist/cli.js test-project --force --yes
 ```
 
-| Type                      | Behavior                                  |
-| ------------------------- | ----------------------------------------- |
-| `uuid` (default)          | Auto-generated with `crypto.randomUUID()` |
-| `integer` + autoincrement | Auto-generated by database                |
-| `integer`                 | User must provide in request body         |
-| `text`                    | User must provide in request body         |
+## Contributing
 
-### Relations
+Honora is open source. Contributions welcome!
 
-```json
-{
-  "user_id": {
-    "type": "relation",
-    "collection": "users",
-    "required": true,
-    "onDelete": "cascade"
-  }
-}
-```
-
-`onDelete` options: `restrict` (default), `cascade`, `set_null`.
-
-### System Columns
-
-Every collection automatically includes:
-
-- `id` — primary key (configurable type)
-- `created_at` — ISO timestamp, set on creation
-- `updated_at` — ISO timestamp, updated on every change
-
-## Optional Features
-
-### Database Drivers
-
-By default, projects use **SQLite**. You can choose PostgreSQL or MySQL:
-
-```json
-{
-  "database": {
-    "driver": "postgres",
-    "url": "postgresql://user:password@localhost:5432/mydb"
-  }
-}
-```
-
-Supported: `sqlite`, `postgres`, `mysql`
-
-### Middleware
-
-Enable built-in Hono middleware:
-
-```json
-{
-  "middleware": ["cors", "logger"]
-}
-```
-
-- **CORS**: Cross-Origin Resource Sharing
-- **Logger**: HTTP request logging
-
-Use the `--middleware` flag to override: `--middleware cors,logger`
-
-### Validation
-
-Choose validation strategy for request bodies:
-
-```json
-{
-  "validation": "hono-zod"
-}
-```
-
-- **`manual` (default)**: Use `safeParse()` for validation, manual error formatting
-- **`hono-zod`**: Use `@hono/zod-validator` middleware for cleaner routes
-
-Use the `--validation` flag to override: `--validation hono-zod`
-
-### OpenAPI Documentation
-
-Enable interactive API documentation with Scalar UI:
-
-```json
-{
-  "openapi": true
-}
-```
-
-When enabled:
-
-- `GET /api/doc` returns the OpenAPI 3.1.0 JSON spec
-- `GET /api/docs` serves the **Scalar UI** for interactive exploration
-- Routes use `@hono/zod-openapi` with typed `createRoute()` definitions
-- Validation is automatically set to `hono-zod`
-- All schemas, request bodies, and responses are documented
-
-Use the `--openapi` flag to enable: `--openapi`
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit changes (`git commit -am 'Add feature'`)
+4. Push to branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
 
 ## License
 
