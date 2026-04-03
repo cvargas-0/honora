@@ -47,7 +47,9 @@ export async function gatherConfig(
   let projectName: string;
   if (isNonInteractive) {
     if (!flags.positional) {
-      p.cancel("Project name is required. Usage: honora <name> or honora .");
+      p.cancel(
+        "Enter your project name or path (relative to current directory) as a positional argument, e.g. `honora my-project` or `honora ./my-project`.",
+      );
       process.exit(1);
     }
     const nameErr = validateProjectName(flags.positional);

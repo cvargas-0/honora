@@ -1,27 +1,61 @@
 import { z } from "zod";
 
 /** Zod schema for a single field definition within a collection. */
-export const fieldSchema = z.object({
-  type: z.enum([
-    "text",
-    "number",
-    "integer",
-    "boolean",
-    "date",
-    "json",
-    "relation",
-  ]),
-  required: z.boolean().optional().default(false),
-  unique: z.boolean().optional().default(false),
-  default: z.any().optional(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  collection: z.string().optional(),
-  onDelete: z
-    .enum(["restrict", "cascade", "set_null"])
-    .optional()
-    .default("restrict"),
-});
+export const fieldSchema = z
+  .object({
+    type: z.enum([
+      "text",
+      "number",
+      "integer",
+      "boolean",
+      "date",
+      "json",
+      "relation",
+    ]),
+    required: z.boolean().optional().default(false),
+    unique: z.boolean().optional().default(false),
+    default: z.any().optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    collection: z.string().optional(),
+    onDelete: z
+      .enum(["restrict", "cascade", "set_null"])
+      .optional()
+      .default("restrict"),
+  })
+  .superRefine((field, ctx) => {
+    if (field.default === undefined) return;
+
+    const val = field.default;
+    const t = field.type;
+
+    if (t === "relation") {
+      ctx.addIssue({
+        code: "custom",
+        message: `Relation fields cannot have a default value`,
+        path: ["default"],
+      });
+      return;
+    }
+
+    if (t === "json") return;
+
+    const rules: Record<string, () => boolean> = {
+      text: () => typeof val === "string",
+      number: () => typeof val === "number",
+      integer: () => typeof val === "number" && Number.isInteger(val),
+      boolean: () => typeof val === "boolean",
+      date: () => typeof val === "string",
+    };
+
+    if (rules[t] && !rules[t]()) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Default value for "${t}" field must be ${t === "integer" ? "an integer" : `a ${t}`}, got ${JSON.stringify(val)}`,
+        path: ["default"],
+      });
+    }
+  });
 
 /** Zod schema for the id configuration of a collection. */
 export const idSchema = z

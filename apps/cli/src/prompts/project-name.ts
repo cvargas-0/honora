@@ -3,7 +3,9 @@ import { cancelled } from "./utils";
 
 const VALID_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
-export function validateProjectName(name: string | undefined): string | undefined {
+export function validateProjectName(
+  name: string | undefined,
+): string | undefined {
   if (!name || name.trim() === "") return "Project name is required";
   if (name === ".") return undefined;
   if (!VALID_NAME.test(name))
@@ -12,7 +14,7 @@ export function validateProjectName(name: string | undefined): string | undefine
 
 export async function promptProjectName(positional?: string): Promise<string> {
   const result = await p.text({
-    message: "Project name",
+    message: "What's your project name?",
     initialValue: positional,
     placeholder: "my-api",
     validate: validateProjectName,

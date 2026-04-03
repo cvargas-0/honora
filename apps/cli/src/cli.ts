@@ -13,13 +13,42 @@ import pkg from "../package.json";
 
 const VERSION = pkg.version;
 
+const BANNER = `
+ ██╗  ██╗ ██████╗ ███╗   ██╗ ██████╗ ██████╗  █████╗
+ ██║  ██║██╔═══██╗████╗  ██║██╔═══██╗██╔══██╗██╔══██╗
+ ███████║██║   ██║██╔██╗ ██║██║   ██║██████╔╝███████║
+ ██╔══██║██║   ██║██║╚██╗██║██║   ██║██╔══██╗██╔══██║
+ ██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝██║  ██║██║  ██║
+ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
+`;
+
+const gradientColors = [
+  "\x1b[38;2;255;91;17m",
+  "\x1b[38;2;240;120;50m",
+  "\x1b[38;2;217;119;87m",
+  "\x1b[38;2;201;100;66m",
+  "\x1b[38;2;246;130;31m",
+  "\x1b[38;2;250;173;63m",
+];
+
+function renderBanner(): string {
+  const reset = "\x1b[0m";
+  const lines = BANNER.split("\n").filter((l) => l.length > 0);
+  return lines
+    .map(
+      (line, i) =>
+        `${gradientColors[i % gradientColors.length]}${line}${reset}`,
+    )
+    .join("\n");
+}
+
 const HELP = `
 honora v${VERSION}
 
 Usage: honora <name> [options]
 
 Arguments:
-  <name>              Project name or "." for current directory
+  <name>              Project name or path (relative to current directory). Use "." for current directory.
 
 Options:
   --schema <path>     Path to schema file (default: ./schema.json)
@@ -58,6 +87,7 @@ async function main() {
     process.exit(0);
   }
 
+  console.log(renderBanner());
   p.intro(`honora v${VERSION}`);
 
   const positional = args.find((a: string) => !a.startsWith("--"));
