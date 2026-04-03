@@ -1,6 +1,6 @@
 {
   "name": "@honora/types",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "TypeScript types and schemas for Honora — the REST API code generator",
   "license": "MIT",
   "type": "module",
