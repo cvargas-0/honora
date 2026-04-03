@@ -1,11 +1,16 @@
 import { Hono } from "hono";
 import { z } from "zod";
 {{#if (eq validation "hono-zod")}}
+{{#if (or hasPost (or hasPut hasPatch))}}
 import { zValidator } from "@hono/zod-validator";
 {{/if}}
+{{/if}}
 import { prisma } from "../db/client{{ext lang}}";
+{{#if hasGet}}
 import { buildWhere } from "../utils/filter-parser{{ext lang}}";
+{{/if}}
 
+{{#if (or hasPost (or hasPut hasPatch))}}
 const createSchema = z.object({
 {{#each createFields}}
 {{#if required}}
@@ -17,12 +22,18 @@ const createSchema = z.object({
 {{/if}}
 {{/each}}
 });
+{{/if}}
+{{#if hasPatch}}
 
 const updateSchema = createSchema.partial();
+{{/if}}
+{{#if hasGet}}
 
 const validFields = new Set({{{validFieldsJson}}});
+{{/if}}
 
 export default new Hono()
+{{#if hasGet}}
   // GET / — list with pagination, sort, filter
   .get("/", async (c) => {
     try {
@@ -56,6 +67,8 @@ export default new Hono()
       return c.json({ error: { code: 400, message: err.message } }, 400);
     }
   })
+{{/if}}
+{{#if hasGetById}}
 
   // GET /:id
   .get("/:id", async (c) => {
@@ -69,6 +82,8 @@ export default new Hono()
     if (!row) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
     return c.json(row);
   })
+{{/if}}
+{{#if hasPost}}
 
   // POST /
 {{#if (eq validation "hono-zod")}}
@@ -127,6 +142,88 @@ export default new Hono()
     }
   })
 {{/if}}
+{{/if}}
+{{#if hasPut}}
+
+  // PUT /:id — full replacement
+{{#if (eq validation "hono-zod")}}
+  .put("/:id", zValidator("json", createSchema), async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.param("id");
+{{/if}}
+
+    const data = c.req.valid("json"){{#if (eq lang "ts")}} as Record<string, unknown>{{/if}};
+
+{{#each relations}}
+    if (data["{{fieldName}}"]) {
+      const ref = await prisma.{{targetCollection}}.findUnique({ where: { id: data["{{fieldName}}"]{{#if (eq ../lang "ts")}} as string{{/if}} } });
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    const existing = await prisma.{{collectionName}}.findUnique({ where: { id } });
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      const updated = await prisma.{{collectionName}}.update({ where: { id }, data: data{{#if (eq lang "ts")}} as any{{/if}} });
+      return c.json(updated);
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      if ({{{uniqueErrorCheck}}}) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+{{else}}
+  .put("/:id", async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.param("id");
+{{/if}}
+
+    let body{{#if (eq lang "ts")}}: unknown{{/if}};
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: { code: 400, message: "Invalid JSON body" } }, 400);
+    }
+
+    const result = createSchema.safeParse(body);
+    if (!result.success) {
+      const details = result.error.issues.map((i{{#if (eq lang "ts")}}: any{{/if}}) => ({ field: i.path.join("."), message: i.message }));
+      return c.json({ error: { code: 400, message: "Validation failed", details } }, 400);
+    }
+
+    const data = result.data{{#if (eq lang "ts")}} as Record<string, unknown>{{/if}};
+
+{{#each relations}}
+    if (data["{{fieldName}}"]) {
+      const ref = await prisma.{{targetCollection}}.findUnique({ where: { id: data["{{fieldName}}"]{{#if (eq ../lang "ts")}} as string{{/if}} } });
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    const existing = await prisma.{{collectionName}}.findUnique({ where: { id } });
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      const updated = await prisma.{{collectionName}}.update({ where: { id }, data: data{{#if (eq lang "ts")}} as any{{/if}} });
+      return c.json(updated);
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      if ({{{uniqueErrorCheck}}}) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+{{/if}}
+{{/if}}
+{{#if hasPatch}}
 
   // PATCH /:id
 {{#if (eq validation "hono-zod")}}
@@ -205,6 +302,8 @@ export default new Hono()
     }
   })
 {{/if}}
+{{/if}}
+{{#if hasDelete}}
 
   // DELETE /:id
   .delete("/:id", async (c) => {
@@ -226,4 +325,12 @@ export default new Hono()
       }
       throw err;
     }
-  });
+  })
+{{/if}}
+{{#if hasOptions}}
+
+  // OPTIONS
+  .options("/", (c) => c.text("", 204, { Allow: "{{allowedMethods}}" }))
+  .options("/:id", (c) => c.text("", 204, { Allow: "{{allowedIdMethods}}" }))
+{{/if}}
+;

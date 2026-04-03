@@ -8,8 +8,6 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
-    "declaration": true,
-    "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

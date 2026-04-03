@@ -66,11 +66,26 @@ export const idSchema = z
   .optional()
   .default({ type: "uuid", autoincrement: false });
 
+/** Zod schema for the HTTP methods that can be generated per collection. */
+export const httpMethodSchema = z.enum([
+  "get",
+  "getId",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "options",
+]);
+
 /** Zod schema for a collection definition (name + fields map). */
 export const collectionSchema = z.object({
   name: z.string().min(1),
   id: idSchema,
   fields: z.record(z.string(), fieldSchema),
+  methods: z
+    .array(httpMethodSchema)
+    .optional()
+    .default(["get", "getId", "post", "put", "patch", "delete", "options"]),
 });
 
 /** Zod schema for the database connection configuration. */

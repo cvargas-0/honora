@@ -22,6 +22,7 @@ export interface ParsedFlags {
   driver?: Driver;
   orm?: Orm;
   middleware?: string;
+  methods?: string;
   validation?: Validation;
   openapi: boolean;
   git?: boolean;
@@ -94,6 +95,10 @@ export async function gatherConfig(
   if (flags.orm) schema.database.orm = flags.orm;
   if (flags.middleware !== undefined)
     schema.middleware = parseMiddlewareFlag(flags.middleware);
+  if (flags.methods !== undefined) {
+    const methods = flags.methods.split(",").map((m) => m.trim()).filter(Boolean) as typeof schema.collections[0]["methods"];
+    for (const col of schema.collections) col.methods = methods;
+  }
   if (flags.validation) schema.validation = flags.validation;
   if (flags.openapi) schema.openapi = true;
 

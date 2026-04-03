@@ -56,6 +56,7 @@ Options:
   --driver <driver>   Database driver: sqlite, postgres, mysql
   --orm <orm>         ORM: drizzle, prisma
   --middleware <list>  Comma-separated: cors,logger
+  --methods <list>    Comma-separated REST methods for all collections: get,getId,post,put,patch,delete,options
   --validation <mode> Validation mode: manual, hono-zod
   --openapi           Enable OpenAPI docs with Scalar
   --force             Overwrite existing directory
@@ -101,6 +102,7 @@ async function main() {
     driver: flagValue("driver") as Driver | undefined,
     orm: flagValue("orm") as Orm | undefined,
     middleware: flagValue("middleware"),
+    methods: flagValue("methods"),
     validation: flagValue("validation") as Validation | undefined,
     openapi: hasFlag("openapi"),
     git: hasFlag("git") ? true : hasFlag("no-git") ? false : undefined,

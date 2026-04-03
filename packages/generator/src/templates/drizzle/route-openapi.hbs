@@ -1,9 +1,12 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { db } from "../db/client{{ext lang}}";
 import { {{collectionName}}{{#each relationImports}}, {{name}}{{/each}} } from "../db/schema{{ext lang}}";
-import { eq, sql, asc, desc, getTableColumns } from "drizzle-orm";
+import { eq{{#if hasGet}}, sql, asc, desc, getTableColumns{{/if}} } from "drizzle-orm";
+{{#if hasGet}}
 import { buildWhere } from "../utils/filter-parser{{ext lang}}";
+{{/if}}
 
+{{#if (or hasPost (or hasPut hasPatch))}}
 const createSchema = z.object({
 {{#each createFields}}
 {{#if required}}
@@ -15,11 +18,16 @@ const createSchema = z.object({
 {{/if}}
 {{/each}}
 });
+{{/if}}
+{{#if hasPatch}}
 
 const updateSchema = createSchema.partial();
+{{/if}}
+{{#if hasGet}}
 
 const validFields = new Set({{{validFieldsJson}}});
 const columns = getTableColumns({{collectionName}});
+{{/if}}
 
 const itemSchema = z.object({
   id: {{#if idIsInteger}}z.number(){{else}}z.string(){{/if}},
@@ -40,6 +48,7 @@ const errorSchema = z.object({
   }),
 }).openapi("Error");
 
+{{#if hasGet}}
 const listRoute = createRoute({
   method: "get",
   path: "/",
@@ -60,6 +69,8 @@ const listRoute = createRoute({
     400: { content: { "application/json": { schema: errorSchema } }, description: "Bad request" },
   },
 });
+{{/if}}
+{{#if hasGetById}}
 
 const getByIdRoute = createRoute({
   method: "get",
@@ -74,6 +85,8 @@ const getByIdRoute = createRoute({
     404: { content: { "application/json": { schema: errorSchema } }, description: "Not found" },
   },
 });
+{{/if}}
+{{#if hasPost}}
 
 const createItemRoute = createRoute({
   method: "post",
@@ -89,6 +102,27 @@ const createItemRoute = createRoute({
     409: { content: { "application/json": { schema: errorSchema } }, description: "Unique constraint violation" },
   },
 });
+{{/if}}
+{{#if hasPut}}
+
+const replaceItemRoute = createRoute({
+  method: "put",
+  path: "/{id}",
+  tags: ["{{capitalName}}"],
+  summary: "Replace {{singularName}}",
+  request: {
+    params: z.object({ id: z.string().openapi({ param: { name: "id", in: "path" }, example: {{#if idIsInteger}}"1"{{else}}"abc-123"{{/if}} }) }),
+    body: { content: { "application/json": { schema: createSchema } }, required: true },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: itemSchema } }, description: "Replaced" },
+    400: { content: { "application/json": { schema: errorSchema } }, description: "Validation error" },
+    404: { content: { "application/json": { schema: errorSchema } }, description: "Not found" },
+    409: { content: { "application/json": { schema: errorSchema } }, description: "Unique constraint violation" },
+  },
+});
+{{/if}}
+{{#if hasPatch}}
 
 const updateItemRoute = createRoute({
   method: "patch",
@@ -105,6 +139,8 @@ const updateItemRoute = createRoute({
     409: { content: { "application/json": { schema: errorSchema } }, description: "Unique constraint violation" },
   },
 });
+{{/if}}
+{{#if hasDelete}}
 
 const deleteItemRoute = createRoute({
   method: "delete",
@@ -120,8 +156,10 @@ const deleteItemRoute = createRoute({
     409: { content: { "application/json": { schema: errorSchema } }, description: "Cannot delete: referenced by other records" },
   },
 });
+{{/if}}
 
 export default new OpenAPIHono()
+{{#if hasGet}}
   // GET / — list with pagination, sort, filter
   .openapi(listRoute, async (c) => {
     try {
@@ -164,6 +202,8 @@ export default new OpenAPIHono()
       return c.json({ error: { code: 400, message: err.message } }, 400);
     }
   })
+{{/if}}
+{{#if hasGetById}}
 
   // GET /:id
   .openapi(getByIdRoute, async (c) => {
@@ -177,6 +217,8 @@ export default new OpenAPIHono()
     if (!row) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
     return c.json(row);
   })
+{{/if}}
+{{#if hasPost}}
 
   // POST /
   .openapi(createItemRoute, async (c) => {
@@ -199,6 +241,45 @@ export default new OpenAPIHono()
       return c.json({ error: { code: 500, message: err.message } }, 500);
     }
   })
+{{/if}}
+{{#if hasPut}}
+
+  // PUT /:id — full replacement
+  .openapi(replaceItemRoute, async (c) => {
+{{#if idIsInteger}}
+    const id = parseInt(c.req.valid("param").id, 10);
+    if (isNaN(id)) return c.json({ error: { code: 400, message: "Invalid ID" } }, 400);
+{{else}}
+    const id = c.req.valid("param").id;
+{{/if}}
+
+    const data = c.req.valid("json"){{#if (eq lang "ts")}} as Record<string, unknown>{{/if}};
+
+{{#each relations}}
+    if (data["{{fieldName}}"]) {
+      const [ref] = await db.select({ id: {{targetCollection}}.id }).from({{targetCollection}}).where(eq({{targetCollection}}.id, data["{{fieldName}}"]{{#if (eq ../lang "ts")}} as string{{/if}}));
+      if (!ref) return c.json({ error: { code: 400, message: 'Referenced record not found in "{{targetCollection}}"' } }, 400);
+    }
+
+{{/each}}
+    const [existing] = await db.select({ id: {{collectionName}}.id }).from({{collectionName}}).where(eq({{collectionName}}.id, id));
+    if (!existing) return c.json({ error: { code: 404, message: "Record not found" } }, 404);
+
+    try {
+      const [updated] = await db.update({{collectionName}})
+        .set({ ...data, updated_at: new Date().toISOString() }{{#if (eq lang "ts")}} as any{{/if}})
+        .where(eq({{collectionName}}.id, id))
+        .returning();
+      return c.json(updated);
+    } catch (err{{#if (eq lang "ts")}}: any{{/if}}) {
+      if ({{{uniqueErrorCheck}}}) {
+        return c.json({ error: { code: 409, message: "Unique constraint violation" } }, 409);
+      }
+      return c.json({ error: { code: 500, message: err.message } }, 500);
+    }
+  })
+{{/if}}
+{{#if hasPatch}}
 
   // PATCH /:id
   .openapi(updateItemRoute, async (c) => {
@@ -234,6 +315,8 @@ export default new OpenAPIHono()
       return c.json({ error: { code: 500, message: err.message } }, 500);
     }
   })
+{{/if}}
+{{#if hasDelete}}
 
   // DELETE /:id
   .openapi(deleteItemRoute, async (c) => {
@@ -255,4 +338,12 @@ export default new OpenAPIHono()
       }
       throw err;
     }
-  });
+  })
+{{/if}}
+{{#if hasOptions}}
+
+  // OPTIONS
+  .options("/", (c) => c.text("", 204, { Allow: "{{allowedMethods}}" }))
+  .options("/:id", (c) => c.text("", 204, { Allow: "{{allowedIdMethods}}" }))
+{{/if}}
+;

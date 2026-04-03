@@ -1,6 +1,7 @@
 import { render } from "../../templates/engine";
 import type { Collection, GeneratorContext } from "@honora/types";
 import { zodExpression } from "../../shared/zod-expression";
+import { buildAllowHeader } from "../../shared/allow-header";
 import template from "../../templates/prisma/route.hbs";
 import openapiTemplate from "../../templates/prisma/route-openapi.hbs";
 
@@ -48,6 +49,8 @@ export function generatePrismaRoute(collection: Collection, ctx: GeneratorContex
   const capitalName = collection.name.charAt(0).toUpperCase() + collection.name.slice(1);
   const singularName = capitalName.replace(/s$/, "");
 
+  const methods = new Set<string>(collection.methods);
+
   const context = {
     lang,
     validation: ctx.validation,
@@ -61,6 +64,15 @@ export function generatePrismaRoute(collection: Collection, ctx: GeneratorContex
     relations,
     uniqueErrorCheck,
     fkErrorCheck,
+    hasGet: methods.has("get"),
+    hasGetById: methods.has("getId"),
+    hasPost: methods.has("post"),
+    hasPut: methods.has("put"),
+    hasPatch: methods.has("patch"),
+    hasDelete: methods.has("delete"),
+    hasOptions: methods.has("options"),
+    allowedMethods: buildAllowHeader(methods, false),
+    allowedIdMethods: buildAllowHeader(methods, true),
   };
 
   return render(ctx.openapi ? openapiTemplate : template, context);

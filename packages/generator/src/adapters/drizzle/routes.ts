@@ -1,6 +1,7 @@
 import { render } from "../../templates/engine";
 import type { Collection, GeneratorContext } from "@honora/types";
 import { zodExpression } from "../../shared/zod-expression";
+import { buildAllowHeader } from "../../shared/allow-header";
 import template from "../../templates/drizzle/route.hbs";
 import openapiTemplate from "../../templates/drizzle/route-openapi.hbs";
 
@@ -73,6 +74,8 @@ export function generateRoute(collection: Collection, ctx: GeneratorContext): st
   const capitalName = collection.name.charAt(0).toUpperCase() + collection.name.slice(1);
   const singularName = capitalName.replace(/s$/, "");
 
+  const methods = new Set<string>(collection.methods);
+
   const context = {
     lang,
     driver,
@@ -89,6 +92,15 @@ export function generateRoute(collection: Collection, ctx: GeneratorContext): st
     relationImports,
     uniqueErrorCheck,
     fkErrorCheck,
+    hasGet: methods.has("get"),
+    hasGetById: methods.has("getId"),
+    hasPost: methods.has("post"),
+    hasPut: methods.has("put"),
+    hasPatch: methods.has("patch"),
+    hasDelete: methods.has("delete"),
+    hasOptions: methods.has("options"),
+    allowedMethods: buildAllowHeader(methods, false),
+    allowedIdMethods: buildAllowHeader(methods, true),
   };
 
   return render(ctx.openapi ? openapiTemplate : template, context);

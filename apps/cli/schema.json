@@ -5,6 +5,7 @@
   "collections": [
     {
       "name": "users",
+      "methos": ["get", "getById", "post", "put", "patch", "delete", "options"],
       "fields": {
         "name": { "type": "text", "required": true },
         "email": { "type": "text", "required": true, "unique": true },
@@ -13,6 +14,7 @@
     },
     {
       "name": "posts",
+      "methods": ["get", "getById", "post", "put", "delete"],
       "fields": {
         "title": { "type": "text", "required": true },
         "body": { "type": "text" },
